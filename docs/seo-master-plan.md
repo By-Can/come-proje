@@ -4,20 +4,20 @@ Bu doküman, Come Rent (comerent.net) projesini organik arama, yapay zeka aramal
 
 ## 1. Technical SEO (Teknik SEO)
 - **Canonical Yönlendirmeleri:** Gaziantep, Van ve çerez sayfalarındaki mevcut canonical hatalarının analiz edilip düzeltilmesi (P0).
-- **Hreflang Etiketleri:** Clio, Symbol ve Egea gibi araç sayfalarında yaşanan hatalı hreflang yapılandırmalarının KPanel üzerinden yönetilen uluslararası içerik stratejisine uygun hale getirilmesi (P0).
-- **Indexation (Dizine Ekleme):** Sitemap içinde yer alan ve inceleme gerektiren gereksiz veya hatalı URL'lerin ayıklanarak arama motoru bütçesinin (crawl budget) optimize edilmesi (P1).
+- **Hreflang Etiketleri:** Clio, Symbol ve Egea gibi araç sayfalarında yaşanan hatalı hreflang hedeflerinin incelenmesi ve düzeltilmesi (P0). (Not: KPanel'in uluslararası dil eşleme/generator kaynağının ve yeteneğinin henüz ne olduğu **UNKNOWN**'dur, hiçbir yapılandırma varsayılmamıştır).
+- **Indexation (Dizine Ekleme):** Sitemap içinde yer alan ve inceleme gerektiren URL'lerin status, canonical ve indexability sınıflandırmasının yapılıp arama motoru bütçesi stratejisinin belirlenmesi (P1).
 
 ## 2. Semantic SEO (Anlamsal SEO) & Content
 - **İçerik Karışıklıklarının Giderilmesi:** Ordu ve Siirt sayfaları arasındaki içerik örtüşmesinin/karışmasının çözülmesi (P0).
-- **Placeholder Hataları:** Erzincan içeriğindeki placeholder (örnek) iletişim bilgilerinin, gerçek ve doğru bilgilerle güncellenmesi (P1).
-- **Bilgi Mimarisinin Düzenlenmesi:** Yanlış konumlanmış bağlantıların (`/iletisim` gibi) tespit edilerek hiyerarşik yapıya uygun alanlara taşınması (P1).
+- **Placeholder Hataları:** Erzincan içeriğindeki placeholder (örnek) iletişim numarası için öncelikle kaynağın (alan/template/JSON-LD) tespit edilmesi; kaynak kesin olarak doğrulanmadan doğrudan değer değiştirme önerisi verilmemesi (P1).
+- **Bilgi Mimarisinin Düzenlenmesi:** `/iletisim` gibi yanlış konumlandığından şüphelenilen bağlantıların kullanım bağlamlarının incelenmesi (P1).
 
 ## 3. Local SEO (Yerel SEO)
 - **Lokasyon Doğrulaması:** READ-ONLY olarak doğrulanan `/sehirler` ve `/lokasyon-listesi` yolları kullanılarak mevcut veriler analiz edilecek; iş modeli gereği rezervasyon yapılabilen (çalışma modelinde `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` kabul edilen) gerçek "Come Rent" ofisleri Google My Business (GMB) ve yerel arama stratejilerinde önceliklendirilecektir. (Not: Bu kriterlerin KPanel'de fiziksel alan/kolon olup olmadığı UNKNOWN'dur).
 - **Partner Teslim Noktaları:** İş ortağı lokasyonlarının "ofis" olarak geçmemesi için içeriklerde doğru terminoloji ("teslim noktası") kullanılması.
 
 ## 4. Programmatic SEO (Programatik SEO)
-- Ölçeklenebilir açılış sayfalarının (örneğin şehir + araç kategorisi) `/icerik-listesi/*` ve `/arac-kategorisi` endpoint verileriyle KPanel'in izin verdiği sınırlar dahilinde oluşturulması.
+- Daha önce READ-ONLY olarak erişilen `/icerik-listesi/*` ve `/arac-kategorisi` yolları analiz edilecektir. (Not: Bu endpoint'lerin veri yapısı ve sayfa oluşturma/yazma kabiliyeti doğrulanmamıştır, dolayısıyla bu kabiliyetler **UNKNOWN** kabul edilmelidir).
 
 ## 5. GEO / AI Search Optimizasyonu
 - **Cevap Motorları Optimizasyonu (AEO):** ChatGPT, Perplexity, Gemini gibi AI tabanlı arama motorları için doğal dil, soru-cevap formatlı, zenginleştirilmiş metinlerin (SSS) KPanel içerik modülleri kullanılarak oluşturulması.

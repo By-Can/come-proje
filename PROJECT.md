@@ -13,7 +13,7 @@
 ## Çalışma Sınırları
 - Hosting, source code ve deployment erişimi **yoktur**.
 - Tüm canlı uygulanabilir değişiklikler **yalnızca KPanel üzerinden** yapılacaktır.
-- KPanel’e bağlanma, credential isteme veya canlı sisteme yazma işlemi **yapılmayacaktır**.
+- KPanel READ-ONLY incelemesi yapılabilir; canlı sistemde (KPanel üzerinden) değişiklik yalnız açık kullanıcı onayı ve kontrollü uygulama aşamasında yapılabilir.
 - Varsayımsal KPanel endpoint'i, alanı veya davranışı üretilmeyecektir (No-hallucination).
 
 ## UNKNOWN Alanlar

@@ -9,8 +9,8 @@ Bu backlog, KPanel üzerinden yapılacak SEO ve operasyonel iyileştirme görevl
 
 ## P1 - Yüksek Öncelik (Kısa Vadede Çözülmesi Gerekenler)
 *   **Placeholder İletişim Bilgileri:** Erzincan içerik bağlamında unutulan placeholder telefon numarasının güncellenmesi.
-*   **Yanlış Konumlandırılan Bağlantılar:** `/iletisim` bağlantılarının beklenmeyen içerik alanlarında bulunması sorununun incelenip kaldırılması veya düzeltilmesi.
-*   **Sitemap İncelemesi:** Sitemap içinde inceleme gerektiren çok sayıda URL'in denetlenmesi ve temizlenmesi.
+*   **Yanlış Konumlandırılan Bağlantılar:** `/iletisim` bağlantılarının beklenmeyen içerik alanlarında bulunduğuna dair bulgunun incelenmesi. Kullanım bağlamı ve kaynak alanı incelenerek, yalnızca gerçekten hatalı olan kullanımların düzeltilmesi.
+*   **Sitemap İncelemesi:** Sitemap içinde inceleme gerektiren çok sayıda URL'in denetlenmesi. Bu URL'ler önce status code, canonical, indexability, redirect, içerik ve sitemap uygunluğu bakımından sınıflandırılacak; alınacak aksiyon (tutma, kaldırma veya düzeltme) bu analizin sonucuna göre belirlenecektir.
 
 ## P2 - Orta Öncelik (Planlı İyileştirmeler)
 *   *Bu alana daha sonra KPanel denetimleri ve yeni SEO stratejileri doğrultusunda görevler eklenecektir.*

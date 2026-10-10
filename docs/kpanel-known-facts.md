@@ -4,7 +4,7 @@ Bu doküman, KPanel hakkında **sadece doğrulanmış** bilgileri ve erişim yol
 
 ## Doğrulanmış Özellikler
 - **Yönetim Paneli Adı:** KPanel
-- **Erişim Türü:** Sadece arayüz üzerinden işlem yapılmaktadır. Canlı sisteme veya veritabanına doğrudan yazma, shell veya kod erişimi yoktur.
+- **Erişim Türü:** Hosting, source, deploy, shell veya doğrudan veritabanı erişimi yoktur. Uygulanabilir canlı değişiklik kanalı tamamen KPanel'dir (ancak bu ifade, ajanların izinsiz olarak KPanel üzerinden canlı değişiklik yapabileceği anlamına gelmez).
 - **Lokasyon Yönetimi:**
   - **İş kuralı:** Canlı online rezervasyon yapılabildiği doğrulanan mevcut lokasyonlar çalışma modelinde `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` olarak sınıflandırılır. Bunların KPanel'de fiziksel alan/kolon olarak bulunduğu doğrulanmamıştır; bu konu **UNKNOWN**'dur.
   - Sadece doğrulanmış "Come Rent" noktaları "ofis" olarak adlandırılabilir.
