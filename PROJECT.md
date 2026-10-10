@@ -7,7 +7,7 @@
 - **Ana Site:** comerent.net
 - **Yönetim Paneli:** KPanel
 - **Tedarik Modeli:** OWN + PARTNER NETWORK.
-- **Aktif Rezervasyon Lokasyonları:** Online rezervasyon yapılabilen mevcut lokasyonlar `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` kabul edilir.
+- **Aktif Rezervasyon Lokasyonları:** İş kuralı: Canlı online rezervasyon yapılabildiği doğrulanan mevcut lokasyonlar çalışma modelinde `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` olarak sınıflandırılır. Bunların KPanel'de fiziksel alan/kolon olarak bulunduğu doğrulanmamıştır; bu konu **UNKNOWN**'dur.
 - **Ofis Tanımı:** Yalnız doğrulanmış Come Rent noktaları “ofis” olarak adlandırılabilir; diğerleri partner teslim noktasıdır.
 
 ## Çalışma Sınırları

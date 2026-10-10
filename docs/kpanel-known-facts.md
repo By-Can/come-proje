@@ -6,12 +6,12 @@ Bu doküman, KPanel hakkında **sadece doğrulanmış** bilgileri ve erişim yol
 - **Yönetim Paneli Adı:** KPanel
 - **Erişim Türü:** Sadece arayüz üzerinden işlem yapılmaktadır. Canlı sisteme veya veritabanına doğrudan yazma, shell veya kod erişimi yoktur.
 - **Lokasyon Yönetimi:**
-  - `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` işaretli lokasyonlarda online rezervasyon yapılabilmektedir.
+  - **İş kuralı:** Canlı online rezervasyon yapılabildiği doğrulanan mevcut lokasyonlar çalışma modelinde `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` olarak sınıflandırılır. Bunların KPanel'de fiziksel alan/kolon olarak bulunduğu doğrulanmamıştır; bu konu **UNKNOWN**'dur.
   - Sadece doğrulanmış "Come Rent" noktaları "ofis" olarak adlandırılabilir.
   - Diğer lokasyonlar "partner teslim noktası" statüsündedir (Tedarik Modeli: OWN + PARTNER NETWORK).
 
 ## Doğrulanmış GET Yolları (Routes)
-Aşağıdaki KPanel GET endpoint'leri/yolları doğrulanmıştır ve analiz veya veri inceleme amacıyla kullanımları güvenlidir:
+Aşağıdaki yollar daha önce READ-ONLY inceleme kapsamında erişilmiş/doğrulanmış KPanel yollarıdır. Bu kayıt, route'un varlığını doğrular; endpoint'in tüm davranışları veya yazma kabiliyeti hakkında ek varsayım yapılmaz:
 
 - `/icerik-listesi/1`
 - `/icerik-listesi/6`

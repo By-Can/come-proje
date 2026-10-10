@@ -13,7 +13,7 @@ Bu doküman, Come Rent (comerent.net) projesini organik arama, yapay zeka aramal
 - **Bilgi Mimarisinin Düzenlenmesi:** Yanlış konumlanmış bağlantıların (`/iletisim` gibi) tespit edilerek hiyerarşik yapıya uygun alanlara taşınması (P1).
 
 ## 3. Local SEO (Yerel SEO)
-- **Lokasyon Doğrulaması:** KPanel'deki `/sehirler` ve `/lokasyon-listesi` verileri kullanılarak, sadece `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` kriterlerine uyan gerçek "Come Rent" ofislerinin Google My Business (GMB) ve yerel arama stratejilerinde önceliklendirilmesi.
+- **Lokasyon Doğrulaması:** READ-ONLY olarak doğrulanan `/sehirler` ve `/lokasyon-listesi` yolları kullanılarak mevcut veriler analiz edilecek; iş modeli gereği rezervasyon yapılabilen (çalışma modelinde `SERVICEABLE_LOCATION=YES` ve `LIVE_BOOKING=YES` kabul edilen) gerçek "Come Rent" ofisleri Google My Business (GMB) ve yerel arama stratejilerinde önceliklendirilecektir. (Not: Bu kriterlerin KPanel'de fiziksel alan/kolon olup olmadığı UNKNOWN'dur).
 - **Partner Teslim Noktaları:** İş ortağı lokasyonlarının "ofis" olarak geçmemesi için içeriklerde doğru terminoloji ("teslim noktası") kullanılması.
 
 ## 4. Programmatic SEO (Programatik SEO)
@@ -28,5 +28,5 @@ Bu doküman, Come Rent (comerent.net) projesini organik arama, yapay zeka aramal
 - **Internal Linking (Site İçi Linkleme):** Anahtar kelime odaklı otorite sayfaları (örneğin araç modelleri, kategoriler, popüler lokasyonlar) ile destekleyici sayfalar arasında güçlü bir site içi linkleme mimarisi oluşturulması.
 
 ## 7. CRO (Dönüşüm Oranı Optimizasyonu)
-- **Kullanıcı Deneyimi (UX):** Rezervasyon sürecinde online işlemlerin (LIVE_BOOKING) ön plana çıkarılması.
+- **Kullanıcı Deneyimi (UX):** Rezervasyon sürecinde online işlem yapılabilen (iş modelinde LIVE_BOOKING olarak kabul edilen) lokasyon/araçların ön plana çıkarılması.
 - Ziyaretçilerin doğru lokasyonlara ve doğru araç sayfalarına en kısa sürede ulaşmalarını sağlamak adına sayfa içi net Call-to-Action (CTA) yerleşimlerinin planlanması.
