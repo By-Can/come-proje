@@ -82,21 +82,22 @@ export function redactSecrets(data) {
     let result = data;
 
     // Pattern to catch common Authorization and cookie patterns and replace their value
-    // Matches: "Authorization: Bearer mysecret" or "cookie: session=123;"
-    // We enforce that the secretValue isn't another keyword by looking ahead or just by iterating
-    // but the easiest is just a more strict mapping, or doing it until stable.
-    const authRegex = /(authorization|cookie|set-cookie|api-key|apikey|token|password|parola|session|csrf|xsrf)([=:\s]+)((?:bearer\s+|basic\s+)?)['"]?([^\s;"',!]+)/gi;
+    // Matches: "Authorization: Bearer mysecret", "cookie: session=123;", or 'password: "my secret pass"'
+    // The previous regex stopped at spaces: `([^\s;"',!]+)`.
+    // We will expand it to match quoted strings containing spaces, OR unquoted strings stopping at space/punctuation.
+    const authRegex = /(authorization|cookie|set-cookie|api-key|apikey|token|password|parola|session|csrf|xsrf)([=:\s]+)((?:bearer\s+|basic\s+)?)(?:"([^"]+)"|'([^']+)'|([^\s;"',!]+))/gi;
 
-    // To prevent matching "token: authorization:", we only replace if secretValue is not in SENSITIVE_KEYS.
-    // Wait, the real fix is we just replace everything that matches, but since multiple secrets could chain,
-    // we should just run the replacement multiple times or do it recursively on the string.
     let previous;
     do {
       previous = result;
-      result = result.replace(authRegex, (match, key, sep, typePrefix, secretValue) => {
-        // If the secret value is another sensitive key (like in "token: authorization: bearer 12345secret!"),
-        // the regex matches "token: authorization". We still want to redact "12345secret" eventually.
-        // Actually, just making secretValue non-greedy or running it twice fixes overlapping matches.
+      result = result.replace(authRegex, (match, key, sep, typePrefix, quotedDouble, quotedSingle, unquoted) => {
+        // Find which capture group had the secret value
+        const secretValue = quotedDouble || quotedSingle || unquoted || '';
+
+        // Return string with [REDACTED] in place of the secret
+        // If it was originally quoted, we can leave the quotes off or keep them,
+        // the requested behavior is to redact the *value*, replacing it with [REDACTED] is safest.
+        // Let's replace the whole value segment (including quotes if matched) with [REDACTED]
         return `${key}${sep}${typePrefix}[REDACTED]`;
       });
     } while (result !== previous);

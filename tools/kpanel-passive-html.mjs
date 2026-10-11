@@ -14,7 +14,7 @@ export function sanitizeHtml(htmlContent) {
   $('input[type="hidden"]').each((i, el) => {
     const name = ($(el).attr('name') || '').toLowerCase();
     const id = ($(el).attr('id') || '').toLowerCase();
-    const isSensitive = ['csrf', 'xsrf', 'token', 'session', 'auth', 'authorization', 'api-key', 'password'].some(key => name.includes(key) || id.includes(key));
+    const isSensitive = ['csrf', 'xsrf', 'token', 'session', 'auth', 'authorization', 'api-key', 'password', 'cookie', 'set-cookie'].some(key => name.includes(key) || id.includes(key));
     if (isSensitive) {
       $(el).attr('value', '[REDACTED]');
     }

@@ -178,6 +178,17 @@ test('Security Invariants: Regression - Advanced string redaction', async (t) =>
     assert.ok(!safeStr.includes('xyz123'));
   });
 
+  await t.test('password: "my secret pass" → tüm deger redacted', () => {
+    // We use "secret-phrase" here or change the test check, since "pass" is inside "password" itself!
+    // The previous test checked !safeStr.includes('pass') which failed because "password: " contains "pass".
+    const logStr = 'The user tried to login with password: "my secret phrase" and failed';
+    const safeStr = redactSecrets(logStr);
+    assert.ok(safeStr.includes('[REDACTED]'));
+    assert.ok(!safeStr.includes('my'));
+    assert.ok(!safeStr.includes('secret'));
+    assert.ok(!safeStr.includes('phrase'));
+  });
+
   await t.test('fetchImpl secret içeren Error firlattiginda disaridaki exception secret icermiyor', async () => {
     const badFetch = async () => {
       throw new Error('Failed to fetch due to bad token: authorization: bearer 12345secret!');
@@ -228,7 +239,7 @@ test('Security Invariants: Body sanitization during auditRoute', async (t) => {
   await t.test('hidden authorization, cookie, api-key degerleri HTML evidence’da redakte ediliyor', async () => {
     const htmlFetch = async () => ({
       headers: new Map([['content-type', 'text/html']]),
-      text: async () => '<meta name="authorization" content="Bearer xyz"><input type="hidden" name="api-key" value="secret-api">'
+      text: async () => '<meta name="authorization" content="Bearer xyz"><input type="hidden" name="api-key" value="secret-api"><input type="hidden" name="cookie" value="mycookie123"><input type="hidden" name="set-cookie" value="mysetcookie456">'
     });
 
     await auditRoute('https://kpanel.comerent.net/sehirler', 'audit/evidence/test-evidence.txt', htmlFetch);
@@ -236,6 +247,8 @@ test('Security Invariants: Body sanitization during auditRoute', async (t) => {
     assert.ok(content.includes('[REDACTED]'));
     assert.ok(!content.includes('xyz'));
     assert.ok(!content.includes('secret-api'));
+    assert.ok(!content.includes('mycookie123'));
+    assert.ok(!content.includes('mysetcookie456'));
   });
 
   // Cleanup
