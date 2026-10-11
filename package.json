@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "Come Rent proje çalışma deposu.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "node --test tools/test-kpanel-security.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/By-Can/come-proje.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/By-Can/come-proje/issues"
+  },
+  "homepage": "https://github.com/By-Can/come-proje#readme",
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
+}
