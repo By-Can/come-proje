@@ -78,11 +78,45 @@ export function redactSecrets(data) {
   }
 
   if (typeof data === 'string') {
-    // Basic heuristic for Bearer and Basic
-    if (/^(Bearer|Basic)\s/i.test(data)) {
-      return '[REDACTED]';
-    }
-    return data;
+    // Advanced string replacement for secrets in arbitrary strings
+    let result = data;
+
+    // Pattern to catch common Authorization and cookie patterns and replace their value
+    // Matches: "Authorization: Bearer mysecret" or "cookie: session=123;"
+    // We enforce that the secretValue isn't another keyword by looking ahead or just by iterating
+    // but the easiest is just a more strict mapping, or doing it until stable.
+    const authRegex = /(authorization|cookie|set-cookie|api-key|apikey|token|password|parola|session|csrf|xsrf)([=:\s]+)((?:bearer\s+|basic\s+)?)['"]?([^\s;"',!]+)/gi;
+
+    // To prevent matching "token: authorization:", we only replace if secretValue is not in SENSITIVE_KEYS.
+    // Wait, the real fix is we just replace everything that matches, but since multiple secrets could chain,
+    // we should just run the replacement multiple times or do it recursively on the string.
+    let previous;
+    do {
+      previous = result;
+      result = result.replace(authRegex, (match, key, sep, typePrefix, secretValue) => {
+        // If the secret value is another sensitive key (like in "token: authorization: bearer 12345secret!"),
+        // the regex matches "token: authorization". We still want to redact "12345secret" eventually.
+        // Actually, just making secretValue non-greedy or running it twice fixes overlapping matches.
+        return `${key}${sep}${typePrefix}[REDACTED]`;
+      });
+    } while (result !== previous);
+
+    // A second pass to catch the remaining "bearer [secret]" that might be orphaned by the above if they were chained
+    const fallbackAuthRegex = /(?:^|\b)(Bearer|Basic)\s+([^\s;"',!]+)/gi;
+    result = result.replace(fallbackAuthRegex, (match, p1, p2) => {
+       if (p2 === '[REDACTED]') return match; // Already redacted
+       return `${match.substring(0, match.lastIndexOf(p2))}[REDACTED]`;
+    });
+
+    // Handle just bearer / basic on their own if they are bare strings
+    const exactBareAuthRegex = /^(Bearer|Basic)\s+([^\s;"',]+)$/i;
+    result = result.replace(exactBareAuthRegex, (match, p1, p2) => {
+       // Keep original test behavior that expects just [REDACTED] if the whole string was just Bearer token.
+       // The previous implementation mapped "Bearer eyJhbGci..." to "[REDACTED]".
+       return '[REDACTED]';
+    });
+
+    return result;
   }
 
   if (Array.isArray(data)) {

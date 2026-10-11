@@ -14,7 +14,7 @@ export function sanitizeHtml(htmlContent) {
   $('input[type="hidden"]').each((i, el) => {
     const name = ($(el).attr('name') || '').toLowerCase();
     const id = ($(el).attr('id') || '').toLowerCase();
-    const isSensitive = ['csrf', 'xsrf', 'token', 'session'].some(key => name.includes(key) || id.includes(key));
+    const isSensitive = ['csrf', 'xsrf', 'token', 'session', 'auth', 'authorization', 'api-key', 'password'].some(key => name.includes(key) || id.includes(key));
     if (isSensitive) {
       $(el).attr('value', '[REDACTED]');
     }
@@ -23,7 +23,7 @@ export function sanitizeHtml(htmlContent) {
   // Remove/redact CSRF <meta> tags
   $('meta').each((i, el) => {
     const name = ($(el).attr('name') || '').toLowerCase();
-    const isSensitive = ['csrf', 'xsrf', 'token'].some(key => name.includes(key));
+    const isSensitive = ['csrf', 'xsrf', 'token', 'auth', 'authorization', 'api-key', 'session', 'cookie', 'password'].some(key => name.includes(key));
     if (isSensitive) {
       $(el).attr('content', '[REDACTED]');
     }

@@ -162,3 +162,82 @@ test('Security Invariants: Secret data redaction', async (t) => {
     assert.equal(redactSecrets(dict).data.user.token, '[REDACTED]');
   });
 });
+
+test('Security Invariants: Regression - Advanced string redaction', async (t) => {
+  await t.test('Authorization: Bearer SECRET içinde SECRET kalmiyor', () => {
+    const logStr = 'Request failed for Authorization: Bearer my-super-secret-token in header';
+    const safeStr = redactSecrets(logStr);
+    assert.ok(safeStr.includes('[REDACTED]'));
+    assert.ok(!safeStr.includes('my-super-secret-token'));
+  });
+
+  await t.test('Cookie: session=SECRET string içinde SECRET kalmiyor', () => {
+    const logStr = 'Headers: { cookie: "session=xyz123;" }';
+    const safeStr = redactSecrets(logStr);
+    assert.ok(safeStr.includes('[REDACTED]'));
+    assert.ok(!safeStr.includes('xyz123'));
+  });
+
+  await t.test('fetchImpl secret içeren Error firlattiginda disaridaki exception secret icermiyor', async () => {
+    const badFetch = async () => {
+      throw new Error('Failed to fetch due to bad token: authorization: bearer 12345secret!');
+    };
+    await assert.rejects(
+      safeKpanelRequest('https://kpanel.comerent.net/sehirler', {}, badFetch),
+      (err) => {
+        assert.ok(err.message.includes('[REDACTED]'));
+        assert.ok(!err.message.includes('12345secret'));
+        return true;
+      }
+    );
+  });
+});
+
+import { auditRoute } from './kpanel-readonly-audit.mjs';
+import fs from 'fs/promises';
+import path from 'path';
+
+test('Security Invariants: Body sanitization during auditRoute', async (t) => {
+  const dummyFile = path.resolve(process.cwd(), 'audit/evidence/test-evidence.txt');
+
+  await t.test('JSON response body icindeki nested token/password evidence’a yazilmadan redakte ediliyor', async () => {
+    const jsonFetch = async () => ({
+      headers: new Map([['content-type', 'application/json']]),
+      text: async () => JSON.stringify({ token: 'my-json-secret', safe: 'data' })
+    });
+
+    await auditRoute('https://kpanel.comerent.net/sehirler', 'audit/evidence/test-evidence.txt', jsonFetch);
+    const content = await fs.readFile(dummyFile, 'utf-8');
+    assert.ok(content.includes('[REDACTED]'));
+    assert.ok(!content.includes('my-json-secret'));
+    assert.ok(content.includes('data'));
+  });
+
+  await t.test('text/plain response icindeki Authorization/Cookie secret redakte ediliyor', async () => {
+    const textFetch = async () => ({
+      headers: new Map([['content-type', 'text/plain']]),
+      text: async () => 'Here is a log with cookie: session=abc987;'
+    });
+
+    await auditRoute('https://kpanel.comerent.net/sehirler', 'audit/evidence/test-evidence.txt', textFetch);
+    const content = await fs.readFile(dummyFile, 'utf-8');
+    assert.ok(content.includes('[REDACTED]'));
+    assert.ok(!content.includes('abc987'));
+  });
+
+  await t.test('hidden authorization, cookie, api-key degerleri HTML evidence’da redakte ediliyor', async () => {
+    const htmlFetch = async () => ({
+      headers: new Map([['content-type', 'text/html']]),
+      text: async () => '<meta name="authorization" content="Bearer xyz"><input type="hidden" name="api-key" value="secret-api">'
+    });
+
+    await auditRoute('https://kpanel.comerent.net/sehirler', 'audit/evidence/test-evidence.txt', htmlFetch);
+    const content = await fs.readFile(dummyFile, 'utf-8');
+    assert.ok(content.includes('[REDACTED]'));
+    assert.ok(!content.includes('xyz'));
+    assert.ok(!content.includes('secret-api'));
+  });
+
+  // Cleanup
+  await fs.unlink(dummyFile).catch(() => {});
+});

@@ -49,8 +49,11 @@ export async function safeKpanelRequest(urlString, options = {}, fetchImpl, redi
   try {
     response = await fetchImpl(urlString, fetchOptions);
   } catch (error) {
-    // Redact any secrets in exception messages
-    throw new Error(redactSecrets(error.message));
+    // Redact any secrets in exception messages, or return a generic message if redaction isn't guaranteed
+    const originalMsg = error.message || '';
+    const safeMsg = redactSecrets(originalMsg);
+    // Even if redacted, let's not leak URL structures if they somehow include keys, just the safe version
+    throw new Error(safeMsg);
   }
 
   // Handle redirects manually
