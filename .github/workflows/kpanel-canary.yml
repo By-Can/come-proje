@@ -1,0 +1,76 @@
+name: KPanel READ-ONLY Canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify secret exists
+        env:
+          KPANEL_SESSION_COOKIE: ${{ secrets.KPANEL_SESSION_COOKIE }}
+        shell: bash
+        run: |
+          if [ -z "$KPANEL_SESSION_COOKIE" ]; then
+            echo "ERROR: KPANEL_SESSION_COOKIE is missing."
+            exit 2
+          fi
+          echo "Secret is configured."
+
+      - name: GET sehirler canary
+        env:
+          KPANEL_SESSION_COOKIE: ${{ secrets.KPANEL_SESSION_COOKIE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET="https://kpanel.comerent.net/sehirler"
+
+          RESULT="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /dev/null \
+              --request GET \
+              --proto '=https' \
+              --tlsv1.2 \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --max-redirs 0 \
+              --header "Cookie: $KPANEL_SESSION_COOKIE" \
+              --write-out '%{http_code}|%{content_type}' \
+              "$TARGET"
+          )"
+
+          HTTP_CODE="${RESULT%%|*}"
+          CONTENT_TYPE="${RESULT#*|}"
+
+          echo "KPanel canary route: /sehirler"
+          echo "HTTP status: $HTTP_CODE"
+          echo "Content-Type: $CONTENT_TYPE"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "CANARY_OK"
+            exit 0
+          fi
+
+          if [ "$HTTP_CODE" = "301" ] || \
+             [ "$HTTP_CODE" = "302" ] || \
+             [ "$HTTP_CODE" = "303" ] || \
+             [ "$HTTP_CODE" = "307" ] || \
+             [ "$HTTP_CODE" = "308" ]; then
+            echo "AUTH_OR_REDIRECT_FAILED"
+            exit 10
+          fi
+
+          echo "CANARY_FAILED"
+          exit 11
