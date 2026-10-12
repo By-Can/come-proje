@@ -1,0 +1,58 @@
+name: KPanel Live READ-ONLY Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security tests
+        run: npm test
+
+      - name: Verify KPanel secret
+        env:
+          KPANEL_SESSION_COOKIE: ${{ secrets.KPANEL_SESSION_COOKIE }}
+        shell: bash
+        run: |
+          if [ -z "$KPANEL_SESSION_COOKIE" ]; then
+            echo "AUTH_FAILED: KPANEL_SESSION_COOKIE is missing."
+            exit 2
+          fi
+          echo "KPanel authentication secret is configured."
+
+      - name: Run KPanel READ-ONLY audit
+        id: live_audit
+        continue-on-error: true
+        env:
+          KPANEL_SESSION_COOKIE: ${{ secrets.KPANEL_SESSION_COOKIE }}
+        run: node tools/kpanel-live-audit.mjs
+
+      - name: Upload sanitized audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpanel-readonly-audit
+          path: |
+            audit/evidence/
+            audit/findings/
+            audit/reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce audit result
+        if: steps.live_audit.outcome != 'success'
+        run: |
+          echo "KPanel READ-ONLY audit did not complete successfully."
+          exit 1
