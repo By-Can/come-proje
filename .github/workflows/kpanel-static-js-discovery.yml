@@ -1,0 +1,30 @@
+name: KPanel Static JS Discovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run passive static JS discovery
+        run: node tools/kpanel-static-js-discovery.mjs
+
+      - name: Upload discovery report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpanel-static-js-discovery
+          path: |
+            audit/reports/kpanel-static-js-discovery.json
+            audit/reports/kpanel-static-js-discovery.md
+          if-no-files-found: error
+          retention-days: 7
