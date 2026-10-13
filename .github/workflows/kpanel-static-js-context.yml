@@ -1,0 +1,34 @@
+name: KPanel Static JS Context
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/kpanel-static-js-context.mjs'
+      - '.github/workflows/kpanel-static-js-context.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run passive static JS context discovery
+        run: node tools/kpanel-static-js-context.mjs
+
+      - name: Upload context report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpanel-static-js-context
+          path: |
+            audit/reports/kpanel-static-js-context.json
+            audit/reports/kpanel-static-js-context.md
+          if-no-files-found: error
+          retention-days: 7
