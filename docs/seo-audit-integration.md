@@ -23,7 +23,9 @@ The integration uses PR #7's broader crawl model and the repository's existing p
 ## Commands and status
 
 - `npm test` runs the existing KPanel safety suite and deterministic crawler/report fixtures.
+- Local result on integration commit `e326ef280d96ecff95555f44eb2847805e098ef6`: **63 tests passed, 0 failed**.
 - `node tools/generate-master-audit.mjs` writes `audit/reports/master-audit.json` and `.md`; absent public or KPanel evidence is emitted as UNKNOWN, not filled with fallback counts.
 - `node tools/public-seo-crawler.mjs --live` is the explicit public-crawl opt-in. It is not part of PR CI; it honors robots and the configured rate bounds. Production edits still require explicit owner approval.
 - `.github/workflows/audit-fixture-tests.yml` runs only `npm ci` and offline tests with `contents: read`; it does not run a crawl or use secrets.
-- A generated public audit and complete KPanel source manifest are still absent. The report is therefore **NOT READY FOR HUMAN REVIEW** as a production audit, and no production action is authorized.
+- Integration draft PR: [#10](https://github.com/By-Can/come-proje/pull/10), targeting `main`. The workflow run [38607059126](https://github.com/By-Can/come-proje/actions/runs/38607059126) is `action_required` with zero jobs, so there is no successful GitHub CI result to claim.
+- A generated public crawl and complete KPanel source manifest are still absent. The report is therefore **NOT READY FOR HUMAN REVIEW** as a production audit, and no production action is authorized.
