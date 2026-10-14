@@ -76,7 +76,7 @@ export function validateCrawlerUrl(rawUrl, baseUrl = START_URL) {
   return parsed;
 }
 
-export function validateCrawlerRedirect(location, currentUrl) {
+export function validateCrawlerRedirect(location, currentUrl, options = {}) {
   if (typeof location !== 'string' || !location.trim()) {
     throw new Error('Invalid redirect target');
   }
@@ -92,7 +92,10 @@ export function validateCrawlerRedirect(location, currentUrl) {
   if (target.protocol !== 'https:') {
     throw new Error('HTTPS downgrade blocked');
   }
-  return validateCrawlerUrl(target.href, currentUrl).href;
+  const validated = validateCrawlerUrl(target.href, currentUrl);
+  const policyReason = crawlerUrlPolicyReason(validated.href, options);
+  if (policyReason) throw new Error(`Redirect URL blocked by policy: ${policyReason}`);
+  return validated.href;
 }
 
 async function resolvePublicAddresses(hostname) {
@@ -193,12 +196,49 @@ function safeUrl(rawUrl, baseUrl) {
   }
 }
 
-export function isSensitivePath(pathname) {
-  return /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)?|cart|checkout|payment|account|login|logout|action|actions|submit|cancel|delete|remove|purchase|order|register|signup|signin)(?:\/|$)/i.test(pathname);
+function normalizedToken(value) {
+  return decodeURIComponent(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replaceAll('ı', 'i')
+    .toLowerCase();
 }
 
-function isCrawlableUrl(url) {
-  return !isSensitivePath(new URL(url).pathname);
+const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|cart|sepet|checkout|payment|pay|odeme|account|hesap|uye(?:[-_]?(?:giris|login))?|member[-_]?(?:login|signin)|login|logout|signin|signout|giris|cikis|action|actions|submit|cancel|iptal|delete|sil|remove|purchase|buy|order|siparis|register|signup|save|kaydet|update|edit|duzenle|create|ekle|islem|eylem)(?:\/|$)/i;
+const ACTION_QUERY_NAME = /^(?:action|actions|act|method|do|operation|op|command|task|submit|intent|islem|eylem|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|booking|reservation|rezervasyon|checkout|payment|odeme|siparis|order|register|signup|login|logout)$/i;
+const ACTION_QUERY_VALUE = /^(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|checkout|payment|odeme|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|submit|purchase|buy|order|siparis|register|signup|login|logout)$/i;
+
+export function isSensitivePath(pathname) {
+  try {
+    return ACTION_PATH_SEGMENT.test(normalizedToken(pathname));
+  } catch {
+    return true;
+  }
+}
+
+export function crawlerUrlPolicyReason(rawUrl, { includeQueryUrls = false } = {}) {
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return 'INVALID_URL';
+  }
+  if (isSensitivePath(url.pathname)) return 'ACTION_PATH_BLOCKED';
+  for (const [name, value] of url.searchParams) {
+    let normalizedName;
+    let normalizedValue;
+    try {
+      normalizedName = normalizedToken(name);
+      normalizedValue = normalizedToken(value.trim());
+    } catch {
+      return 'INVALID_QUERY_URL_BLOCKED';
+    }
+    if (ACTION_QUERY_NAME.test(normalizedName) || ACTION_QUERY_VALUE.test(normalizedValue)) {
+      return 'ACTION_QUERY_BLOCKED';
+    }
+  }
+  if (!includeQueryUrls && url.search) return 'QUERY_URL_SCOPE_EXCLUDED';
+  return null;
 }
 
 function effectiveUrlKey(rawUrl) {
@@ -235,7 +275,8 @@ export async function fetchUrlWithManualRedirects(
   const parsed = validateCrawlerUrl(initialUrl);
   if (redirectCount > MAX_REDIRECTS) throw new Error('Max redirect hops exceeded');
   if (chain.includes(parsed.href)) throw new Error('Redirect cycle blocked');
-  if (isSensitivePath(parsed.pathname)) throw new Error('Action URL blocked by policy');
+  const policyReason = crawlerUrlPolicyReason(parsed.href, options);
+  if (policyReason) throw new Error(`URL blocked by policy: ${policyReason}`);
   if (options.robotsRules && !isAllowedByRobots(parsed.href, options.robotsRules)) {
     throw new Error('URL blocked by robots.txt policy');
   }
@@ -251,7 +292,7 @@ export async function fetchUrlWithManualRedirects(
   const location = getHeader(response.headers, 'location');
   if (response.status >= 300 && response.status < 400) {
     if (!location) throw new Error('Redirect without a location');
-    const nextUrl = validateCrawlerRedirect(location, parsed.href);
+    const nextUrl = validateCrawlerRedirect(location, parsed.href, options);
     return fetchUrlWithManualRedirects(nextUrl, fetchImpl, options, redirectCount + 1, nextChain);
   }
 
@@ -331,7 +372,8 @@ async function fetchSitemapUrls(sitemapUrl, context, depth = 0) {
     const { response } = await fetchUrlWithManualRedirects(
       normalized, context.fetchImpl, {
         beforeRequest: context.beforeRequest,
-        robotsRules: context.robotsRules
+        robotsRules: context.robotsRules,
+        includeQueryUrls: context.includeQueryUrls
       }
     );
     if (!response.ok) {
@@ -368,8 +410,9 @@ async function fetchSitemapUrls(sitemapUrl, context, depth = 0) {
           context.sitemapUrlSet.add(location);
           context.sitemapUrlCount += 1;
         }
-        if (isCrawlableUrl(location)) urls.add(location);
-        else context.skippedUrls.add(location);
+        const policyReason = crawlerUrlPolicyReason(location, context);
+        if (!policyReason) urls.add(location);
+        else context.skippedUrls.set(location, policyReason);
       } else {
         context.blockedSitemaps.push({ reason: 'INVALID_OR_EXTERNAL_PAGE_URL' });
         context.sitemapComplete = false;
@@ -415,7 +458,7 @@ function localeIsValid(locale) {
   }
 }
 
-function extractPageDocument(html, finalUrl, xRobotsTag, status) {
+function extractPageDocument(html, finalUrl, xRobotsTag, status, includeQueryUrls = false) {
   if (status !== 200) return null;
   const $ = cheerio.load(html);
   const title = $('title').first().text().trim() || null;
@@ -464,10 +507,17 @@ function extractPageDocument(html, finalUrl, xRobotsTag, status) {
   const h2 = [];
   $('h2').each((_, element) => h2.push($(element).text().trim()));
   const links = [];
+  const skippedLinks = [];
   $('a[href]').each((_, element) => {
     if (links.length >= MAX_INTERNAL_LINKS_PER_PAGE) return false;
     const normalized = normalizeUrl($(element).attr('href'), finalUrl);
-    if (normalized && isCrawlableUrl(normalized) && !links.includes(normalized)) links.push(normalized);
+    if (!normalized) return;
+    const policyReason = crawlerUrlPolicyReason(normalized, { includeQueryUrls });
+    if (policyReason) {
+      skippedLinks.push({ url: normalized, reason: policyReason });
+    } else if (!links.includes(normalized)) {
+      links.push(normalized);
+    }
   });
   $('script, style, noscript').remove();
   const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
@@ -504,6 +554,7 @@ function extractPageDocument(html, finalUrl, xRobotsTag, status) {
     wordCount,
     thinContentCandidate: wordCount < 200,
     links,
+    skippedLinks,
     internalLinksFound: links.length
   };
 }
@@ -551,11 +602,13 @@ export async function runPublicSeoCrawler({
   fetchImpl = pinnedHttpsGet,
   maxPages = MAX_PAGES,
   maxSitemapDepth = MAX_SITEMAP_DEPTH,
+  includeQueryUrls = false,
   delayMs = REQUEST_DELAY_MS,
   generatedAt = new Date().toISOString()
 } = {}) {
   const context = {
     fetchImpl,
+    includeQueryUrls,
     maxSitemapDepth: Math.min(maxSitemapDepth, MAX_SITEMAP_DEPTH),
     requestCount: 0,
     sitemapVisited: new Set(),
@@ -564,7 +617,7 @@ export async function runPublicSeoCrawler({
     sitemapUrlCount: 0,
     sitemapComplete: true,
     blockedSitemaps: [],
-    skippedUrls: new Set(),
+    skippedUrls: new Map(),
     robotsRules: [],
     robotsSitemaps: []
   };
@@ -634,6 +687,11 @@ export async function runPublicSeoCrawler({
   const queue = [];
   const queueLimit = Math.min(maxPages, MAX_PAGES) * 2;
   const enqueue = (url, source) => {
+    const policyReason = crawlerUrlPolicyReason(url, context);
+    if (policyReason) {
+      context.skippedUrls.set(url, policyReason);
+      return;
+    }
     addSource(sourceMap, url, source);
     if (!queue.includes(url) && queue.length < queueLimit) queue.push(url);
   };
@@ -651,10 +709,10 @@ export async function runPublicSeoCrawler({
     if (visited.has(requestedUrl)) continue;
     visited.add(requestedUrl);
 
-    if (!isCrawlableUrl(requestedUrl) || !isAllowedByRobots(requestedUrl, context.robotsRules)) {
+    if (crawlerUrlPolicyReason(requestedUrl, context) || !isAllowedByRobots(requestedUrl, context.robotsRules)) {
       pageRequests.push({
-        requestedUrl: safeUrl(requestedUrl),
-        finalUrl: safeUrl(requestedUrl),
+        requestedUrl,
+        finalUrl: requestedUrl,
         statusCode: null,
         evidenceSources: [...(sourceMap.get(requestedUrl) ?? [])],
         result: 'BLOCKED_BY_POLICY',
@@ -668,7 +726,8 @@ export async function runPublicSeoCrawler({
       const { response, redirectChain } = await fetchUrlWithManualRedirects(
         requestedUrl, fetchImpl, {
           beforeRequest: context.beforeRequest,
-          robotsRules: context.robotsRules
+          robotsRules: context.robotsRules,
+          includeQueryUrls
         }
       );
       const finalUrl = redirectChain.at(-1);
@@ -678,7 +737,12 @@ export async function runPublicSeoCrawler({
 
       if (statusCode === 200 && /text\/html/i.test(contentType)) {
         const html = await responseText(response);
-        document = extractPageDocument(html, finalUrl, getHeader(response.headers, 'x-robots-tag'), statusCode);
+        document = extractPageDocument(
+          html, finalUrl, getHeader(response.headers, 'x-robots-tag'), statusCode, includeQueryUrls
+        );
+        for (const skipped of document.skippedLinks) {
+          context.skippedUrls.set(skipped.url, skipped.reason);
+        }
         for (const target of document.links) {
           allInternalLinks.add(effectiveUrlKey(target));
           links.push({ source: safeUrl(finalUrl), target: safeUrl(target), evidenceClass: 'VERIFIED_LINK_OBSERVED' });
@@ -687,10 +751,10 @@ export async function runPublicSeoCrawler({
       }
 
       pageRequests.push({
-        requestedUrl: safeUrl(requestedUrl),
-        finalUrl: safeUrl(finalUrl),
-        effectiveUrl: safeUrl(effectiveUrlKey(finalUrl)),
-        redirectChain: redirectChain.map(url => safeUrl(url)),
+        requestedUrl,
+        finalUrl,
+        effectiveUrl: effectiveUrlKey(finalUrl),
+        redirectChain,
         statusCode,
         contentType: String(contentType).split(';', 1)[0],
         observedAt: new Date().toISOString(),
@@ -700,8 +764,8 @@ export async function runPublicSeoCrawler({
       });
     } catch (error) {
       pageRequests.push({
-        requestedUrl: safeUrl(requestedUrl),
-        finalUrl: safeUrl(requestedUrl),
+        requestedUrl,
+        finalUrl: requestedUrl,
         statusCode: null,
         evidenceSources: [...(sourceMap.get(requestedUrl) ?? [])],
         result: /policy|blocked|redirect|private|non-public|size limit/i.test(error.message)
@@ -810,6 +874,7 @@ export async function runPublicSeoCrawler({
         ? 'PARTIAL'
         : 'BOUNDED_SCOPE_COMPLETE',
       scope: 'Discovered same-site URLs only; this is not a complete-site or search-indexation proof.',
+      queryUrlPolicy: includeQueryUrls ? 'INCLUDED_BY_EXPLICIT_OPTION' : 'EXCLUDED_BY_DEFAULT',
       pageLimit,
       pageRequestCount: pageFetchCount,
       uniqueEffectivePageCount: effectivePages.length,
@@ -824,7 +889,10 @@ export async function runPublicSeoCrawler({
     sitemap: {
       filesFetched: [...context.sitemapFetched].map(url => safeUrl(url)),
       blockedOrUnavailable: context.blockedSitemaps,
-      skippedActionUrls: [...context.skippedUrls].map(url => safeUrl(url))
+      skippedUrls: [...context.skippedUrls].map(([url, reason]) => ({
+        url: safeUrl(url),
+        reason
+      }))
     },
     pages: effectivePages.map(page => ({
       requestedUrls: page.requestedUrls.map(url => safeUrl(url)),
@@ -832,9 +900,16 @@ export async function runPublicSeoCrawler({
       effectiveUrl: safeUrl(effectiveUrlKey(page.finalUrl)),
       statusCode: page.statusCode,
       result: page.result,
-      redirectChain: page.redirectChain,
+      redirectChain: page.redirectChain?.map(url => safeUrl(url)) ?? [],
       evidenceSources: page.evidenceSources,
-      document: page.document,
+      document: page.document ? {
+        ...page.document,
+        links: page.document.links.map(url => safeUrl(url)),
+        skippedLinks: page.document.skippedLinks.map(link => ({
+          url: safeUrl(link.url),
+          reason: link.reason
+        }))
+      } : null,
       observedAt: page.observedAt ?? generatedAt
     })),
     http404Candidates: effectivePages

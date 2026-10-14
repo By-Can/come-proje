@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fetchUrlWithManualRedirects,
+  crawlerUrlPolicyReason,
   isAllowedByRobots,
   isPublicIp,
   parseRobotsRules,
@@ -28,7 +29,7 @@ function response(status, body = '', headers = {}) {
 }
 
 function sitemapUrlset(urls) {
-  return `<urlset>${urls.map(url => `<url><loc>${url}</loc></url>`).join('')}</urlset>`;
+  return `<urlset>${urls.map(url => `<url><loc>${url.replaceAll('&', '&amp;')}</loc></url>`).join('')}</urlset>`;
 }
 
 function fixtureFetch(fixtures, calls = []) {
@@ -103,6 +104,72 @@ test('manual redirects block external hosts, scheme changes, loops, and unbounde
     /robots.txt policy/
   );
   assert.equal(policyCalls, 1);
+
+  let queryRedirectCalls = 0;
+  await assert.rejects(
+    fetchUrlWithManualRedirects('https://comerent.net/start', async () => {
+      queryRedirectCalls += 1;
+      return response(302, '', { location: '/some-path?action=delete' });
+    }, { includeQueryUrls: true }),
+    /ACTION_QUERY_BLOCKED/
+  );
+  assert.equal(queryRedirectCalls, 1);
+});
+
+test('English and Turkish action paths and action queries are blocked before network requests', async () => {
+  const blockedUrls = [
+    'https://comerent.net/booking',
+    'https://comerent.net/rezervasyon',
+    'https://comerent.net/odeme',
+    'https://comerent.net/uye-giris',
+    'https://comerent.net/some-path?action=delete',
+    'https://comerent.net/some-path?do=save'
+  ];
+  let calls = 0;
+  for (const url of blockedUrls) {
+    await assert.rejects(
+      fetchUrlWithManualRedirects(url, async () => {
+        calls += 1;
+        return response(200);
+      }, { includeQueryUrls: true }),
+      /blocked by policy/
+    );
+    assert.ok(crawlerUrlPolicyReason(url, { includeQueryUrls: true }));
+  }
+  assert.equal(calls, 0);
+  assert.equal(
+    crawlerUrlPolicyReason('https://comerent.net/some-path?filter=compact'),
+    'QUERY_URL_SCOPE_EXCLUDED'
+  );
+});
+
+test('sitemaps and internal links use the same action policy and exclude query URLs by default', async () => {
+  const skipped = [
+    'https://comerent.net/rezervasyon',
+    'https://comerent.net/odeme',
+    'https://comerent.net/uye-giris',
+    'https://comerent.net/some-path?action=delete',
+    'https://comerent.net/search?filter=compact'
+  ];
+  const calls = [];
+  const fetchImpl = fixtureFetch({
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset(skipped.concat('https://comerent.net/safe'))),
+    '/': response(200, `<html><head><title>Home</title></head><body>${skipped.map(url => `<a href="${url}">skip</a>`).join('')}<a href="/safe">safe</a></body></html>`, {
+      'content-type': 'text/html'
+    }),
+    '/safe': response(200, '<html><title>Safe</title></html>', { 'content-type': 'text/html' })
+  }, calls);
+  const report = await runPublicSeoCrawler({ fetchImpl, delayMs: 0 });
+  assert.deepEqual(
+    calls.map(url => new URL(url).pathname),
+    ['/robots.txt', '/sitemap.xml', '/', '/safe']
+  );
+  assert.equal(report.coverage.queryUrlPolicy, 'EXCLUDED_BY_DEFAULT');
+  assert.equal(report.sitemap.skippedUrls.some(item => item.reason === 'QUERY_URL_SCOPE_EXCLUDED'), true);
+  assert.equal(report.sitemap.skippedUrls.some(item => item.reason === 'ACTION_PATH_BLOCKED'), true);
+  assert.equal(report.sitemap.skippedUrls.some(item => item.reason === 'ACTION_QUERY_BLOCKED'), true);
+  assert.equal(JSON.stringify(report).includes('action=delete'), false);
 });
 
 test('robots rules are parsed and disallowed action paths are not requested', async () => {
@@ -120,7 +187,7 @@ test('robots rules are parsed and disallowed action paths are not requested', as
   }, calls);
   const report = await runPublicSeoCrawler({ fetchImpl, delayMs: 0 });
   assert.equal(calls.some(url => new URL(url).pathname === '/booking'), false);
-  assert.equal(report.sitemap.skippedActionUrls.length, 1);
+  assert.equal(report.sitemap.skippedUrls.length, 1);
 });
 
 test('response caps fail closed and production request spacing remains conservative', async () => {
@@ -220,6 +287,50 @@ test('effective URLs are deduplicated before page-level title aggregation', asyn
   assert.equal(report.summary.requestCount, calls.length);
   assert.deepEqual(report.summary.titleDuplicateGroups, []);
   assert.equal(calls.some(url => new URL(url).pathname === '/booking'), false);
+});
+
+test('query values remain distinct for identity but query details are redacted from reports', async () => {
+  const urls = [
+    'https://comerent.net/page?id=1&lang=tr',
+    'https://comerent.net/page?lang=tr&id=1',
+    'https://www.comerent.net/page?lang=tr&id=1',
+    'https://comerent.net/page?id=2&lang=tr'
+  ];
+  const calls = [];
+  const fixtures = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset(urls)),
+    '/': response(200, '<html><head><title>Home</title></head><body>Home</body></html>', {
+      'content-type': 'text/html'
+    }),
+    '/page': url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'www.comerent.net') {
+        return response(301, '', {
+          location: 'https://comerent.net/page?id=1&lang=tr'
+        });
+      }
+      return response(200, `<html><head><title>Page ${parsed.searchParams.get('id')}</title></head><body>Page</body></html>`, {
+        'content-type': 'text/html'
+      });
+    }
+  };
+  const report = await runPublicSeoCrawler({
+    fetchImpl: fixtureFetch(fixtures, calls),
+    includeQueryUrls: true,
+    delayMs: 0
+  });
+  assert.equal(report.summary.sitemapUrlCount, 4);
+  assert.equal(report.summary.pageRequestCount, 5);
+  assert.equal(report.summary.uniqueEffectivePageCount, 3);
+  assert.equal(report.coverage.queryUrlPolicy, 'INCLUDED_BY_EXPLICIT_OPTION');
+  assert.equal(report.summary.titleDuplicateGroups.length, 0);
+  const serialized = JSON.stringify(report);
+  assert.equal(serialized.includes('id=1'), false);
+  assert.equal(serialized.includes('id=2'), false);
+  assert.equal(serialized.includes('lang=tr'), false);
+  assert.equal(calls.some(url => url.includes('id=1')), true);
+  assert.equal(calls.some(url => url.includes('id=2')), true);
 });
 
 test('120-page cap reports 120 of 224 URLs as partial, never confirmed orphan pages', async () => {
