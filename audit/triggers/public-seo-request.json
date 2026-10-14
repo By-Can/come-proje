@@ -1,0 +1,7 @@
+{
+  "request_id": "initial-public-seo-audit-2026-10-15",
+  "target": "https://comerent.net/",
+  "scope": "public-readonly-GET-only",
+  "authorized_by": "repository-owner-via-chat",
+  "note": "Run the existing bounded public SEO crawler via GitHub Actions. No KPanel requests or production writes."
+}
