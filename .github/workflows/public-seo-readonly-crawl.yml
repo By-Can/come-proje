@@ -1,0 +1,50 @@
+# Manually triggered audit of public comerent.net pages only.
+# No KPanel session, booking API, credentials or production mutations.
+name: Come Rent Public SEO READ-ONLY Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comerent-public-seo-readonly-crawl
+  cancel-in-progress: false
+
+jobs:
+  public-seo-audit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run offline security and regression tests
+        run: npm test
+
+      - name: Audit public Come Rent pages (GET only, rate limited)
+        run: node tools/public-seo-crawler.mjs --live
+
+      - name: Save sanitized audit summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-seo-readonly-audit-${{ github.run_id }}
+          path: |
+            audit/reports/master-audit.json
+            audit/reports/master-audit.md
+          if-no-files-found: error
+          retention-days: 7
