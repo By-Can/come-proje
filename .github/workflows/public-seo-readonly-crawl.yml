@@ -1,9 +1,14 @@
-# Manually triggered audit of public comerent.net pages only.
+# Public comerent.net audit: manual dispatch or controlled GitHub request file push.
 # No KPanel session, booking API, credentials or production mutations.
 name: Come Rent Public SEO READ-ONLY Audit
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'audit/triggers/public-seo-request.json'
 
 permissions:
   contents: read
