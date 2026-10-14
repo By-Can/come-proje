@@ -204,7 +204,7 @@ function normalizedToken(value) {
     .toLowerCase();
 }
 
-const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|cart|sepet|checkout|payment|pay|odeme|account|hesap|uye(?:[-_]?(?:giris|login))?|member[-_]?(?:login|signin)|login|logout|signin|signout|giris|cikis|action|actions|submit|cancel|iptal|delete|sil|remove|purchase|buy|order|siparis|register|signup|save|kaydet|update|edit|duzenle|create|ekle|islem|eylem)(?:\/|$)/i;
+const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|cart|sepet|checkout|payment|pay|odeme|account|hesap|uye(?:[-_]?(?:giris|login))?|member[-_]?(?:login|signin)|login|logout|signin|signout|giris|cikis|action|actions|submit|cancel|iptal|delete|sil|remove|purchase|buy|order|siparis|register|signup|acente(?:[-_][a-z0-9-]+)?|bayilik[-_]basvurusu|basvuru(?:su)?|b2b(?:[-_][a-z0-9-]+)?|profil(?:im)?|uye(?:lik)?|musteri(?:[-_][a-z0-9-]+)?|giris[-_]yap|sifre|parola|password|forgot[-_]password|oturum|save|kaydet|update|edit|duzenle|create|ekle|islem|eylem)(?:\/|$)/i;
 const ACTION_QUERY_NAME = /^(?:action|actions|act|method|do|operation|op|command|task|submit|intent|islem|eylem|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|booking|reservation|rezervasyon|checkout|payment|odeme|siparis|order|register|signup|login|logout)$/i;
 const ACTION_QUERY_VALUE = /^(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|checkout|payment|odeme|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|submit|purchase|buy|order|siparis|register|signup|login|logout)$/i;
 
