@@ -172,6 +172,54 @@ test('sitemaps and internal links use the same action policy and exclude query U
   assert.equal(JSON.stringify(report).includes('action=delete'), false);
 });
 
+test('Come Rent B2B, agent, profile and application URLs are never fetched', async () => {
+  const privateOrActionUrls = [
+    'https://comerent.net/acente-girisi',
+    'https://comerent.net/acente-kayit',
+    'https://comerent.net/acente-uyelik-bilgilerim',
+    'https://comerent.net/bayilik-basvurusu',
+    'https://comerent.net/b2b/giris',
+    'https://comerent.net/musteri-hesap',
+    'https://comerent.net/profilim',
+    'https://comerent.net/sifre',
+    'https://comerent.net/acente/profil'
+  ];
+  let blockedRequestCount = 0;
+  for (const url of privateOrActionUrls) {
+    assert.equal(crawlerUrlPolicyReason(url), 'ACTION_PATH_BLOCKED', url);
+    await assert.rejects(
+      fetchUrlWithManualRedirects(url, async () => {
+        blockedRequestCount += 1;
+        return response(200, '<html><title>Portal</title></html>');
+      }),
+      /ACTION_PATH_BLOCKED/
+    );
+  }
+  assert.equal(blockedRequestCount, 0);
+
+  const calls = [];
+  const fixtures = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset([
+      ...privateOrActionUrls,
+      'https://comerent.net/ankara-arac-kiralama'
+    ])),
+    '/': response(200, `<html><head><title>Home</title></head><body>${privateOrActionUrls.map(url => `<a href="${url}">portal</a>`).join('')}<a href="/ankara-arac-kiralama">Ankara</a></body></html>`, {
+      'content-type': 'text/html'
+    }),
+    '/ankara-arac-kiralama': response(200, '<html><head><title>Ankara araç kiralama</title></head><body>Open</body></html>', {
+      'content-type': 'text/html'
+    })
+  };
+  const report = await runPublicSeoCrawler({ fetchImpl: fixtureFetch(fixtures, calls), delayMs: 0 });
+  assert.deepEqual(calls.map(url => new URL(url).pathname), [
+    '/robots.txt', '/sitemap.xml', '/', '/ankara-arac-kiralama'
+  ]);
+  assert.equal(report.summary.pageRequestCount, 2);
+  assert.equal(report.sitemap.skippedUrls.filter(item => item.reason === 'ACTION_PATH_BLOCKED').length, privateOrActionUrls.length);
+  assert.equal(report.observations.some(item => item.url?.includes('acente')), false);
+});
+
 test('robots rules are parsed and disallowed action paths are not requested', async () => {
   const rules = parseRobotsRules('User-agent: *\nDisallow: /booking\nAllow: /booking/help\n');
   assert.equal(isAllowedByRobots('https://comerent.net/booking', rules.rules), false);
