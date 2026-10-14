@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "node --test tools/test-kpanel-security.mjs"
+    "test": "node --test tools/test-kpanel-security.mjs tools/test-audit-tools.mjs"
   },
   "repository": {
     "type": "git",

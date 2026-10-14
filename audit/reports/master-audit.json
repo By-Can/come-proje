@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-10-14T17:28:48.580Z",
+  "assessment": "NOT_READY_FOR_HUMAN_REVIEW",
+  "sourceManifest": {
+    "publicCrawl": {
+      "evidenceClass": "UNKNOWN",
+      "source": null,
+      "sourceRunId": null,
+      "generatedAt": null,
+      "coverage": null,
+      "pageRequestCount": null
+    },
+    "kpanel": {
+      "evidenceClass": "UNKNOWN",
+      "source": null,
+      "sourceRunId": null,
+      "generatedAt": null,
+      "note": "No current KPanel source manifest is available; no KPanel request was made."
+    },
+    "backlog": {
+      "evidenceClass": "VERIFIED",
+      "source": "BACKLOG.md",
+      "sourceRunId": null,
+      "generatedAt": null,
+      "meaning": "Verified as historical backlog text only, not as a current production finding."
+    }
+  },
+  "findings": [],
+  "priorityMatrix": {
+    "P0": [],
+    "P1": [],
+    "P2": [],
+    "P3": []
+  },
+  "historicalIssues": [
+    {
+      "historicalPriority": "P0",
+      "claim": "**Canonical Problemleri:** Gaziantep, Van ve çerez sayfasında yaşanan canonical sorunlarının çözülmesi.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    },
+    {
+      "historicalPriority": "P0",
+      "claim": "**İçerik Karışması (Cross-Content Issue):** Ordu ve Siirt sayfalarındaki içerik karışması probleminin giderilmesi.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    },
+    {
+      "historicalPriority": "P0",
+      "claim": "**Hreflang Hataları:** Clio, Symbol ve Egea sayfalarında hatalı hreflang hedeflerinin düzeltilmesi.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    },
+    {
+      "historicalPriority": "P1",
+      "claim": "**Placeholder İletişim Bilgileri:** Erzincan içerik bağlamında unutulan placeholder telefon numarasının güncellenmesi.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    },
+    {
+      "historicalPriority": "P1",
+      "claim": "**Yanlış Konumlandırılan Bağlantılar:** `/iletisim` bağlantılarının beklenmeyen içerik alanlarında bulunduğuna dair bulgunun incelenmesi. Kullanım bağlamı ve kaynak alanı incelenerek, yalnızca gerçekten hatalı olan kullanımların düzeltilmesi.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    },
+    {
+      "historicalPriority": "P1",
+      "claim": "**Sitemap İncelemesi:** Sitemap içinde inceleme gerektiren çok sayıda URL'in denetlenmesi. Bu URL'ler önce status code, canonical, indexability, redirect, içerik ve sitemap uygunluğu bakımından sınıflandırılacak; alınacak aksiyon (tutma, kaldırma veya düzeltme) bu analizin sonucuna göre belirlenecektir.",
+      "source": "BACKLOG.md",
+      "sourceTimestamp": null,
+      "currentPublicStatus": "UNKNOWN",
+      "currentEvidence": "No verified URL mapping or current public observation is available."
+    }
+  ],
+  "kpanelEndpointCandidates": [
+    {
+      "path": "/Locations/GetExcelReport",
+      "classification": "UNKNOWN_DO_NOT_CALL",
+      "method": "UNKNOWN",
+      "callableByAuditPolicy": false,
+      "reason": "Method or exact route is not supported by verified read-only evidence.",
+      "evidenceClass": "UNKNOWN",
+      "source": "tools/kpanel-static-js-context.mjs candidate list; no checked-in source observation establishes the method.",
+      "sourceTimestamp": null
+    }
+  ],
+  "unresolvedWork": [
+    "Historical BACKLOG.md claims remain separate from current findings until verified public URLs and matching evidence are available.",
+    "KPanel data, source reports, endpoint methods other than verified allowlisted routes, and edit feasibility remain UNKNOWN.",
+    "Actual Google/Bing indexation, booking impact, and customer impact are not measured by this crawler.",
+    "No KPanel change or production SEO change is authorized; owner approval is required before any production action."
+  ]
+}
