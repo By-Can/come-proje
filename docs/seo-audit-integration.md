@@ -23,7 +23,7 @@ The integration uses PR #7's broader crawl model and the repository's existing p
 ## Commands and status
 
 - `npm test` runs the existing KPanel safety suite and deterministic crawler/report fixtures.
-- Local result on integration commit `e326ef280d96ecff95555f44eb2847805e098ef6`: **63 tests passed, 0 failed**.
+- Latest local `npm test` result: **63 tests passed, 0 failed**.
 - `node tools/generate-master-audit.mjs` writes `audit/reports/master-audit.json` and `.md`; absent public or KPanel evidence is emitted as UNKNOWN, not filled with fallback counts.
 - `node tools/public-seo-crawler.mjs --live` is the explicit public-crawl opt-in. It is not part of PR CI; it honors robots and the configured rate bounds. Production edits still require explicit owner approval.
 - `.github/workflows/audit-fixture-tests.yml` runs only `npm ci` and offline tests with `contents: read`; it does not run a crawl or use secrets.

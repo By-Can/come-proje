@@ -11,8 +11,11 @@ import {
 const UNKNOWN_ENDPOINT = '/Locations/GetExcelReport';
 const KPANEL_ORIGIN = 'https://kpanel.comerent.net';
 
-export function classifyEndpoint(path, methodHint = 'UNKNOWN', operation = 'UNKNOWN') {
+export function classifyEndpoint(path, methodHint = 'UNKNOWN', operation = 'UNKNOWN', sourceEvidence = null) {
   const method = typeof methodHint === 'string' ? methodHint.toUpperCase() : 'UNKNOWN';
+  const methodVerified = sourceEvidence?.method === method;
+  const operationVerified = sourceEvidence?.operation === operation;
+  const hasSource = typeof sourceEvidence?.source === 'string' && sourceEvidence.source.length > 0;
   let verifiedRoute = false;
   try {
     const url = validateKpanelUrl(new URL(path, KPANEL_ORIGIN).href);
@@ -31,7 +34,7 @@ export function classifyEndpoint(path, methodHint = 'UNKNOWN', operation = 'UNKN
       reason: 'Exact verified KPanel route and read-only method.'
     };
   }
-  if (method === 'POST' && operation === 'READ_QUERY') {
+  if (method === 'POST' && operation === 'READ_QUERY' && methodVerified && operationVerified && hasSource) {
     return {
       classification: 'POST_READ_LIKE_BLOCKED_BY_POLICY',
       method,
@@ -39,7 +42,7 @@ export function classifyEndpoint(path, methodHint = 'UNKNOWN', operation = 'UNKN
       reason: 'Static source identifies a read-like POST; POST is prohibited by policy.'
     };
   }
-  if (method === 'POST' && operation === 'WRITE') {
+  if (method === 'POST' && operation === 'WRITE' && methodVerified && operationVerified && hasSource) {
     return {
       classification: 'WRITE_POST_BLOCKED',
       method,

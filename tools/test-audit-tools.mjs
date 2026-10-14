@@ -272,8 +272,13 @@ test('master report keeps historical claims separate and unknown KPanel methods 
   assert.equal(report.kpanelEndpointCandidates[0].callableByAuditPolicy, false);
   assert.equal(report.assessment, 'NOT_READY_FOR_HUMAN_REVIEW');
   assert.equal(classifyEndpoint('/sehirler', 'GET').classification, 'SAFE_GET_VERIFIED');
-  assert.equal(classifyEndpoint('/example', 'POST', 'READ_QUERY').classification, 'POST_READ_LIKE_BLOCKED_BY_POLICY');
-  assert.equal(classifyEndpoint('/example', 'POST', 'WRITE').classification, 'WRITE_POST_BLOCKED');
+  assert.equal(classifyEndpoint('/example', 'POST', 'READ_QUERY').classification, 'UNKNOWN_DO_NOT_CALL');
+  assert.equal(classifyEndpoint('/example', 'POST', 'READ_QUERY', {
+    method: 'POST', operation: 'READ_QUERY', source: 'fixture.js'
+  }).classification, 'POST_READ_LIKE_BLOCKED_BY_POLICY');
+  assert.equal(classifyEndpoint('/example', 'POST', 'WRITE', {
+    method: 'POST', operation: 'WRITE', source: 'fixture.js'
+  }).classification, 'WRITE_POST_BLOCKED');
   assert.equal(classifyEndpoint('/Locations/GetExcelReport').classification, 'UNKNOWN_DO_NOT_CALL');
   assert.equal(classifyEndpoint('/Locations/GetExcelReportExtra', 'POST').classification, 'UNKNOWN_DO_NOT_CALL');
 });
