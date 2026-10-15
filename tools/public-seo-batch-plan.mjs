@@ -21,13 +21,16 @@ export function planPublicSitemapBatch({ candidates, pageLimit, batchIndex }) {
     throw new RangeError('Batch index exceeds the current verified sitemap inventory');
   }
   const start = batchIndex * pageLimit;
+  const selectedUrls = eligible.slice(start, start + pageLimit);
+  const selectedUrlSha256 = createHash('sha256').update(selectedUrls.join('\n')).digest('hex');
   return {
     batchIndex,
     batchCount,
     pageLimit,
     eligibleCandidateCount: eligible.length,
     inventorySha256,
-    selectedUrls: eligible.slice(start, start + pageLimit),
+    selectedUrlSha256,
+    selectedUrls,
     selectionBasis: 'CURRENT_SITEMAP_AND_START_URL_ONLY',
     isHistoricalCheckpoint: false,
     note: 'Selection is deterministic for this run; previously audited URL status is not assumed.'
