@@ -1,4 +1,5 @@
 import { classifyRequestLevelEvidence } from './public-seo-batch-plan.mjs';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
@@ -25,13 +26,14 @@ export function reviewPublicSitemapBatches(reports) {
     const batch = report?.coverage?.sitemapBatch ??
       report?.sourceManifest?.publicCrawl?.coverage?.sitemapBatch;
     const requests = report?.requestManifest ?? report?.publicRequestManifest;
+    const coverage = report?.coverage ?? report?.sourceManifest?.publicCrawl?.coverage;
     if (!batch || !Array.isArray(requests)) {
       reasons.add('MISSING_BATCH_OR_REQUEST_MANIFEST');
       missingManifestCount++;
       continue;
     }
     const { batchIndex, batchCount, pageLimit, eligibleCandidateCount,
-      selectedUrlCount, inventorySha256 } = batch;
+      selectedUrlCount, inventorySha256, selectedUrlSha256 } = batch;
     const valid = Number.isSafeInteger(batchIndex) && batchIndex >= 0 &&
       Number.isSafeInteger(batchCount) && batchCount > 0 &&
       Number.isSafeInteger(pageLimit) && pageLimit >= 1 && pageLimit <= 120 &&
@@ -39,11 +41,15 @@ export function reviewPublicSitemapBatches(reports) {
       Number.isSafeInteger(selectedUrlCount) && selectedUrlCount > 0 &&
       selectedUrlCount <= pageLimit && batchIndex < batchCount &&
       Math.ceil(eligibleCandidateCount / pageLimit) === batchCount &&
-      /^[a-f0-9]{64}$/.test(inventorySha256 ?? '');
+      /^[a-f0-9]{64}$/.test(inventorySha256 ?? '') &&
+      /^[a-f0-9]{64}$/.test(selectedUrlSha256 ?? '');
     if (!valid) {
       reasons.add('INVALID_BATCH_METADATA');
       continue;
     }
+    // An incomplete sitemap is not a complete inventory, even if all
+    // supplied page candidates returned 200.
+    if (coverage?.sitemapComplete !== true) reasons.add('SITEMAP_INCOMPLETE_OR_UNVERIFIED');
     const metadata = JSON.stringify([inventorySha256, batchCount, pageLimit, eligibleCandidateCount]);
     if (reference === null) {
       reference = { inventorySha256, batchCount, pageLimit, eligibleCandidateCount, metadata };
@@ -54,6 +60,15 @@ export function reviewPublicSitemapBatches(reports) {
     batchIds.add(batchIndex);
     totalReportedSelectedUrls += selectedUrlCount;
     if (requests.length !== selectedUrlCount) reasons.add('REQUEST_COUNT_MISMATCH');
+    // Every selected request must match the exact planned URL set. Aggregate
+    // counts and matching inventory hashes alone cannot establish this.
+    if (requests.every(item => typeof item?.requestedUrl === 'string')) {
+      const selectionHash = createHash('sha256')
+        .update(requests.map(item => item.requestedUrl).sort().join('\n')).digest('hex');
+      if (selectionHash !== selectedUrlSha256) reasons.add('SELECTED_REQUEST_URLS_MISMATCH');
+    } else {
+      reasons.add('INVALID_REQUEST_EVIDENCE');
+    }
 
     // Only accept request manifests; deduplicated pages are not evidence.
     let evaluated;
