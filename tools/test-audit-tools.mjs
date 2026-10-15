@@ -471,6 +471,7 @@ test('deterministic sitemap batches cover 224 discovered URLs without overlap or
   assert.equal(first.coverage.sitemapBatch.batchIndex, 0);
   assert.equal(first.coverage.sitemapBatch.batchCount, 2);
   assert.equal(first.coverage.sitemapBatch.selectedUrlCount, 120);
+  assert.match(first.coverage.sitemapBatch.inventorySha256, /^[a-f0-9]{64}$/);
   assert.equal(first.coverage.sitemapBatch.historicalCheckpointUsed, false);
   assert.equal(first.coverage.status, 'PARTIAL');
 
@@ -483,6 +484,7 @@ test('deterministic sitemap batches cover 224 discovered URLs without overlap or
   assert.equal(second.coverage.sitemapBatch.batchIndex, 1);
   assert.equal(second.coverage.sitemapBatch.selectedUrlCount, 105);
   assert.equal(second.coverage.sitemapBatch.allBatchesVerified, false);
+  assert.equal(second.coverage.sitemapBatch.inventorySha256, first.coverage.sitemapBatch.inventorySha256);
   assert.equal([...firstRequests].filter(url => secondRequests.has(url)).length, 0);
   assert.equal(new Set([...firstRequests, ...secondRequests]).size, 225);
   assert.equal(first.requestManifest.every(item => item.contentType === 'text/html'), true);
@@ -515,6 +517,17 @@ test('batch planner validates bounds and request-level 404 does not count as com
       statusCode: null, result: 'BLOCKED_BY_POLICY', contentType: null, observedAt: null }
   ]);
   assert.deepEqual(proof.verifiedHttp200HtmlUrls, ['https://comerent.net/one']);
+  const aliases = classifyRequestLevelEvidence([
+    { requestedUrl: 'https://comerent.net/alias', finalUrl: 'https://comerent.net/target',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html',
+      redirectChain: ['https://comerent.net/alias', 'https://comerent.net/target'],
+      observedAt: '2026-10-15T02:00:00Z' },
+    { requestedUrl: 'https://comerent.net/page?id=%5BREDACTED%5D', finalUrl: 'https://comerent.net/page?id=%5BREDACTED%5D',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html',
+      observedAt: '2026-10-15T02:00:00Z' }
+  ]);
+  assert.equal(aliases.verifiedHttp200HtmlUrls.length, 0);
+  assert.equal(aliases.requiresReview.length, 2);
   assert.deepEqual(proof.requiresReview.map(item => item.requestedUrl), [
     'https://comerent.net/missing', 'https://comerent.net/blocked'
   ]);
