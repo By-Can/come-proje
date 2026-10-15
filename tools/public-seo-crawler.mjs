@@ -919,6 +919,7 @@ export async function runPublicSeoCrawler({
         batchCount: sitemapBatch.batchCount,
         pageLimit: sitemapBatch.pageLimit,
         eligibleCandidateCount: sitemapBatch.eligibleCandidateCount,
+        inventorySha256: sitemapBatch.inventorySha256,
         selectedUrlCount: sitemapBatch.selectedUrls.length,
         selectionBasis: sitemapBatch.selectionBasis,
         historicalCheckpointUsed: false,
