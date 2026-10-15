@@ -4,6 +4,12 @@ name: Come Rent Public SEO READ-ONLY Audit
 
 on:
   workflow_dispatch:
+    inputs:
+      batch_index:
+        description: 'default = existing bounded sample; 0, 1, ... = deterministic sitemap batch'
+        type: string
+        default: 'default'
+        required: false
   push:
     branches:
       - main
@@ -41,8 +47,23 @@ jobs:
       - name: Run offline security and regression tests
         run: npm test
 
+      - name: Validate selected sitemap batch (offline)
+        id: selected_batch
+        shell: bash
+        env:
+          REQUESTED_BATCH_INDEX: ${{ inputs.batch_index }}
+        run: node tools/public-seo-workflow-batch.mjs
+
       - name: Audit public Come Rent pages (GET only, rate limited)
-        run: node tools/public-seo-crawler.mjs --live
+        shell: bash
+        env:
+          BATCH_INDEX: ${{ steps.selected_batch.outputs.batch_index }}
+        run: |
+          if [ "$BATCH_INDEX" = "default" ]; then
+            node tools/public-seo-crawler.mjs --live
+          else
+            node tools/public-seo-crawler.mjs --live "--batch-index=$BATCH_INDEX"
+          fi
 
       - name: Save sanitized audit summary
         uses: actions/upload-artifact@v4

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { planPublicSitemapBatch, classifyRequestLevelEvidence } from './public-seo-batch-plan.mjs';
 import assert from 'node:assert/strict';
 import {
   fetchUrlWithManualRedirects,
@@ -170,6 +171,54 @@ test('sitemaps and internal links use the same action policy and exclude query U
   assert.equal(report.sitemap.skippedUrls.some(item => item.reason === 'ACTION_PATH_BLOCKED'), true);
   assert.equal(report.sitemap.skippedUrls.some(item => item.reason === 'ACTION_QUERY_BLOCKED'), true);
   assert.equal(JSON.stringify(report).includes('action=delete'), false);
+});
+
+test('Come Rent B2B, agent, profile and application URLs are never fetched', async () => {
+  const privateOrActionUrls = [
+    'https://comerent.net/acente-girisi',
+    'https://comerent.net/acente-kayit',
+    'https://comerent.net/acente-uyelik-bilgilerim',
+    'https://comerent.net/bayilik-basvurusu',
+    'https://comerent.net/b2b/giris',
+    'https://comerent.net/musteri-hesap',
+    'https://comerent.net/profilim',
+    'https://comerent.net/sifre',
+    'https://comerent.net/acente/profil'
+  ];
+  let blockedRequestCount = 0;
+  for (const url of privateOrActionUrls) {
+    assert.equal(crawlerUrlPolicyReason(url), 'ACTION_PATH_BLOCKED', url);
+    await assert.rejects(
+      fetchUrlWithManualRedirects(url, async () => {
+        blockedRequestCount += 1;
+        return response(200, '<html><title>Portal</title></html>');
+      }),
+      /ACTION_PATH_BLOCKED/
+    );
+  }
+  assert.equal(blockedRequestCount, 0);
+
+  const calls = [];
+  const fixtures = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset([
+      ...privateOrActionUrls,
+      'https://comerent.net/ankara-arac-kiralama'
+    ])),
+    '/': response(200, `<html><head><title>Home</title></head><body>${privateOrActionUrls.map(url => `<a href="${url}">portal</a>`).join('')}<a href="/ankara-arac-kiralama">Ankara</a></body></html>`, {
+      'content-type': 'text/html'
+    }),
+    '/ankara-arac-kiralama': response(200, '<html><head><title>Ankara araç kiralama</title></head><body>Open</body></html>', {
+      'content-type': 'text/html'
+    })
+  };
+  const report = await runPublicSeoCrawler({ fetchImpl: fixtureFetch(fixtures, calls), delayMs: 0 });
+  assert.deepEqual(calls.map(url => new URL(url).pathname), [
+    '/robots.txt', '/sitemap.xml', '/', '/ankara-arac-kiralama'
+  ]);
+  assert.equal(report.summary.pageRequestCount, 2);
+  assert.equal(report.sitemap.skippedUrls.filter(item => item.reason === 'ACTION_PATH_BLOCKED').length, privateOrActionUrls.length);
+  assert.equal(report.observations.some(item => item.url?.includes('acente')), false);
 });
 
 test('robots rules are parsed and disallowed action paths are not requested', async () => {
@@ -392,4 +441,98 @@ test('master report keeps historical claims separate and unknown KPanel methods 
   }).classification, 'WRITE_POST_BLOCKED');
   assert.equal(classifyEndpoint('/Locations/GetExcelReport').classification, 'UNKNOWN_DO_NOT_CALL');
   assert.equal(classifyEndpoint('/Locations/GetExcelReportExtra', 'POST').classification, 'UNKNOWN_DO_NOT_CALL');
+});
+
+test('deterministic sitemap batches cover 224 discovered URLs without overlap or exceeding 120 GETs', async () => {
+  const sitemapUrls = Array.from(
+    { length: 224 },
+    (_, index) => `https://comerent.net/page-${index + 1}`
+  );
+  const fixture = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset(sitemapUrls))
+  };
+  const visits = [];
+  const mockFetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    assert.equal(options.redirect, 'manual');
+    visits.push(url);
+    return fixture[new URL(url).pathname] ??
+      response(200, '<html><head><title>Page</title></head><body>Public informational content</body></html>', {
+        'content-type': 'text/html'
+      });
+  };
+  const first = await runPublicSeoCrawler({
+    fetchImpl: mockFetch, delayMs: 0, sitemapBatchIndex: 0
+  });
+  const firstRequests = new Set(first.requestManifest.map(item => item.requestedUrl));
+  assert.equal(first.summary.sitemapUrlCount, 224);
+  assert.equal(first.summary.pageRequestCount, 120);
+  const masterFirst = await buildMasterAuditReport({ crawlReport: first, backlogText: '' });
+  assert.equal(masterFirst.publicRequestManifest.length, 120);
+  assert.equal(masterFirst.publicRequestManifest[0].statusCode, 200);
+  assert.equal(first.coverage.sitemapBatch.batchIndex, 0);
+  assert.equal(first.coverage.sitemapBatch.batchCount, 2);
+  assert.equal(first.coverage.sitemapBatch.selectedUrlCount, 120);
+  assert.match(first.coverage.sitemapBatch.inventorySha256, /^[a-f0-9]{64}$/);
+  assert.equal(first.coverage.sitemapBatch.historicalCheckpointUsed, false);
+  assert.equal(first.coverage.status, 'PARTIAL');
+
+  const second = await runPublicSeoCrawler({
+    fetchImpl: mockFetch, delayMs: 0, sitemapBatchIndex: 1
+  });
+  const secondRequests = new Set(second.requestManifest.map(item => item.requestedUrl));
+  assert.equal(second.summary.sitemapUrlCount, 224);
+  assert.equal(second.summary.pageRequestCount, 105);
+  assert.equal(second.coverage.sitemapBatch.batchIndex, 1);
+  assert.equal(second.coverage.sitemapBatch.selectedUrlCount, 105);
+  assert.equal(second.coverage.sitemapBatch.allBatchesVerified, false);
+  assert.equal(second.coverage.sitemapBatch.inventorySha256, first.coverage.sitemapBatch.inventorySha256);
+  assert.equal([...firstRequests].filter(url => secondRequests.has(url)).length, 0);
+  assert.equal(new Set([...firstRequests, ...secondRequests]).size, 225);
+  assert.equal(first.requestManifest.every(item => item.contentType === 'text/html'), true);
+});
+
+test('batch planner validates bounds and request-level 404 does not count as completed evidence', async () => {
+  assert.throws(
+    () => planPublicSitemapBatch({ candidates: ['https://comerent.net/'], pageLimit: 121, batchIndex: 0 }),
+    /Batch size/
+  );
+  assert.throws(
+    () => planPublicSitemapBatch({ candidates: ['https://comerent.net/'], pageLimit: 120, batchIndex: 1 }),
+    /Batch index exceeds/
+  );
+  const rejected = [];
+  await assert.rejects(
+    runPublicSeoCrawler({
+      sitemapBatchIndex: -1,
+      fetchImpl: async () => { rejected.push('network'); return response(200); }
+    }),
+    /Batch index must/
+  );
+  assert.equal(rejected.length, 0);
+  const proof = classifyRequestLevelEvidence([
+    { requestedUrl: 'https://comerent.net/one', finalUrl: 'https://comerent.net/one',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html', observedAt: '2026-10-15T01:00:00Z' },
+    { requestedUrl: 'https://comerent.net/missing', finalUrl: 'https://comerent.net/missing',
+      statusCode: 404, result: 'HTTP_404', contentType: 'text/html', observedAt: '2026-10-15T01:00:01Z' },
+    { requestedUrl: 'https://comerent.net/blocked', finalUrl: 'https://comerent.net/blocked',
+      statusCode: null, result: 'BLOCKED_BY_POLICY', contentType: null, observedAt: null }
+  ]);
+  assert.deepEqual(proof.verifiedHttp200HtmlUrls, ['https://comerent.net/one']);
+  const aliases = classifyRequestLevelEvidence([
+    { requestedUrl: 'https://comerent.net/alias', finalUrl: 'https://comerent.net/target',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html',
+      redirectChain: ['https://comerent.net/alias', 'https://comerent.net/target'],
+      observedAt: '2026-10-15T02:00:00Z' },
+    { requestedUrl: 'https://comerent.net/page?id=%5BREDACTED%5D', finalUrl: 'https://comerent.net/page?id=%5BREDACTED%5D',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html',
+      observedAt: '2026-10-15T02:00:00Z' }
+  ]);
+  assert.equal(aliases.verifiedHttp200HtmlUrls.length, 0);
+  assert.equal(aliases.requiresReview.length, 2);
+  assert.deepEqual(proof.requiresReview.map(item => item.requestedUrl), [
+    'https://comerent.net/missing', 'https://comerent.net/blocked'
+  ]);
+  assert.throws(() => classifyRequestLevelEvidence([{ statusCode: 200 }]), /requestedUrl/);
 });

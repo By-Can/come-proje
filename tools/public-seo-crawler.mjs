@@ -3,6 +3,7 @@ import https from 'node:https';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import * as cheerio from 'cheerio';
+import { planPublicSitemapBatch } from './public-seo-batch-plan.mjs';
 import { redactSecrets } from './kpanel-readonly-guard.mjs';
 
 const START_URL = 'https://comerent.net/';
@@ -204,13 +205,20 @@ function normalizedToken(value) {
     .toLowerCase();
 }
 
-const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|cart|sepet|checkout|payment|pay|odeme|account|hesap|uye(?:[-_]?(?:giris|login))?|member[-_]?(?:login|signin)|login|logout|signin|signout|giris|cikis|action|actions|submit|cancel|iptal|delete|sil|remove|purchase|buy|order|siparis|register|signup|save|kaydet|update|edit|duzenle|create|ekle|islem|eylem)(?:\/|$)/i;
+const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|cart|sepet|checkout|payment|pay|odeme|account|hesap|uye(?:[-_]?(?:giris|login))?|member[-_]?(?:login|signin)|login|logout|signin|signout|giris|cikis|action|actions|submit|cancel|iptal|delete|sil|remove|purchase|buy|order|siparis|register|signup|bayilik[-_]basvurusu|basvuru(?:su)?|profil(?:im)?|uye(?:lik)?|giris[-_]yap|sifre|parola|password|forgot[-_]password|oturum|panel|dashboard|save|kaydet|update|edit|duzenle|create|ekle|islem|eylem)(?:\/|$)/i;
+// Exact B2B/account actions stay blocked while public informational slugs
+// such as /acente-kiralama-rehberi or /musteri-hizmetleri remain eligible.
+const PRIVATE_PORTAL_ROOT = /^\/(?:acente|b2b|musteri)\/?$/i;
+const PRIVATE_PORTAL_ACTION = /(?:^|\/)(?:acente|b2b|musteri)[-_](?:giris(?:i)?|login|kayit|register|signup|uye(?:lik)?(?:[-_]bilgilerim)?|hesap|profil(?:im)?|panel|portal|dashboard|oturum|sifre|parola|password)(?:\/|$)/i;
 const ACTION_QUERY_NAME = /^(?:action|actions|act|method|do|operation|op|command|task|submit|intent|islem|eylem|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|booking|reservation|rezervasyon|checkout|payment|odeme|siparis|order|register|signup|login|logout)$/i;
 const ACTION_QUERY_VALUE = /^(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|checkout|payment|odeme|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|submit|purchase|buy|order|siparis|register|signup|login|logout)$/i;
 
 export function isSensitivePath(pathname) {
   try {
-    return ACTION_PATH_SEGMENT.test(normalizedToken(pathname));
+    const normalized = normalizedToken(pathname);
+    return ACTION_PATH_SEGMENT.test(normalized) ||
+      PRIVATE_PORTAL_ROOT.test(normalized) ||
+      PRIVATE_PORTAL_ACTION.test(normalized);
   } catch {
     return true;
   }
@@ -602,10 +610,17 @@ export async function runPublicSeoCrawler({
   fetchImpl = pinnedHttpsGet,
   maxPages = MAX_PAGES,
   maxSitemapDepth = MAX_SITEMAP_DEPTH,
+  sitemapBatchIndex = null,
   includeQueryUrls = false,
   delayMs = REQUEST_DELAY_MS,
   generatedAt = new Date().toISOString()
 } = {}) {
+  // Validate before any network request. A batch indexes the current sitemap
+  // inventory, never guesses completion from aggregated historical reports.
+  if (sitemapBatchIndex !== null &&
+      (!Number.isSafeInteger(sitemapBatchIndex) || sitemapBatchIndex < 0)) {
+    throw new RangeError('Batch index must be a nonnegative integer');
+  }
   const context = {
     fetchImpl,
     includeQueryUrls,
@@ -695,15 +710,40 @@ export async function runPublicSeoCrawler({
     addSource(sourceMap, url, source);
     if (!queue.includes(url) && queue.length < queueLimit) queue.push(url);
   };
-  enqueue(START_URL, 'START_URL');
-  for (const url of sitemapUrls) enqueue(url, 'SITEMAP');
+  const pageLimit = Math.max(0, Math.min(Number(maxPages) || 0, MAX_PAGES));
+  let sitemapBatch = null;
+  if (sitemapBatchIndex === null) {
+    enqueue(START_URL, 'START_URL');
+    for (const url of sitemapUrls) enqueue(url, 'SITEMAP');
+  } else {
+    const eligibleCandidates = [START_URL, ...sitemapUrls].filter(url => {
+      const reason = crawlerUrlPolicyReason(url, context);
+      if (reason) {
+        context.skippedUrls.set(url, reason);
+        return false;
+      }
+      // A robots-disallowed URL is excluded before deterministic selection.
+      if (!isAllowedByRobots(url, context.robotsRules)) {
+        context.skippedUrls.set(url, 'ROBOTS_DISALLOW');
+        return false;
+      }
+      return true;
+    });
+    sitemapBatch = planPublicSitemapBatch({
+      candidates: eligibleCandidates,
+      pageLimit,
+      batchIndex: sitemapBatchIndex
+    });
+    for (const url of sitemapBatch.selectedUrls) {
+      enqueue(url, url === START_URL ? 'START_URL' : 'SITEMAP');
+    }
+  }
 
   const visited = new Set();
   const pageRequests = [];
   let pageFetchCount = 0;
   const allInternalLinks = new Set();
   const links = [];
-  const pageLimit = Math.max(0, Math.min(Number(maxPages) || 0, MAX_PAGES));
   while (queue.length && visited.size < pageLimit) {
     const requestedUrl = queue.shift();
     if (visited.has(requestedUrl)) continue;
@@ -746,7 +786,9 @@ export async function runPublicSeoCrawler({
         for (const target of document.links) {
           allInternalLinks.add(effectiveUrlKey(target));
           links.push({ source: safeUrl(finalUrl), target: safeUrl(target), evidenceClass: 'VERIFIED_LINK_OBSERVED' });
-          enqueue(target, 'INTERNAL_LINK');
+          // A bounded sitemap batch must not shift its URL window when a
+          // crawled page reveals additional links. Preserve links as evidence.
+          if (sitemapBatchIndex === null) enqueue(target, 'INTERNAL_LINK');
         }
       }
 
@@ -879,6 +921,18 @@ export async function runPublicSeoCrawler({
       pageRequestCount: pageFetchCount,
       uniqueEffectivePageCount: effectivePages.length,
       sitemapUrlCount: context.sitemapUrlCount,
+      sitemapBatch: sitemapBatch ? {
+        batchIndex: sitemapBatch.batchIndex,
+        batchCount: sitemapBatch.batchCount,
+        pageLimit: sitemapBatch.pageLimit,
+        eligibleCandidateCount: sitemapBatch.eligibleCandidateCount,
+        inventorySha256: sitemapBatch.inventorySha256,
+        selectedUrlSha256: sitemapBatch.selectedUrlSha256,
+        selectedUrlCount: sitemapBatch.selectedUrls.length,
+        selectionBasis: sitemapBatch.selectionBasis,
+        historicalCheckpointUsed: false,
+        allBatchesVerified: false
+      } : null,
       queuedSitemapUrlCount: [...sitemapUrls].filter(url => queue.includes(url) || visited.has(url)).length,
       remainingQueueCount: queue.length,
       sitemapComplete: context.sitemapComplete,
@@ -894,6 +948,18 @@ export async function runPublicSeoCrawler({
         reason
       }))
     },
+    // Raw request-level outcome evidence is intentionally separate from
+    // effective-page aggregates; HTTP 404 and redirects must not be promoted
+    // to successful historical checkpoints.
+    requestManifest: pageRequests.map(page => ({
+      requestedUrl: safeUrl(page.requestedUrl),
+      finalUrl: safeUrl(page.finalUrl),
+      statusCode: page.statusCode,
+      contentType: page.contentType ?? null,
+      result: page.result,
+      observedAt: page.observedAt ?? null,
+      redirectChain: page.redirectChain?.map(url => safeUrl(url)) ?? []
+    })),
     pages: effectivePages.map(page => ({
       requestedUrls: page.requestedUrls.map(url => safeUrl(url)),
       finalUrl: safeUrl(page.finalUrl),
@@ -939,7 +1005,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error('Public crawl is opt-in; rerun with --live to make rate-limited HTTPS GET requests.');
     process.exitCode = 2;
   } else {
-    runPublicSeoCrawler()
+    const batchOption = process.argv.find(arg => arg.startsWith('--batch-index='));
+    const index = batchOption ? Number(batchOption.slice('--batch-index='.length)) : null;
+    runPublicSeoCrawler({ sitemapBatchIndex: index })
       .then(async crawlReport => {
         const { buildMasterAuditReport, writeMasterAuditReport } = await import('./generate-master-audit.mjs');
         const report = await buildMasterAuditReport({ crawlReport });
