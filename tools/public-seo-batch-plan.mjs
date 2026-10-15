@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Deterministic, offline-only selection of bounded public sitemap batches.
  * This does not infer successful previous scans or accept historical checkpoints.
@@ -13,6 +15,7 @@ export function planPublicSitemapBatch({ candidates, pageLimit, batchIndex }) {
     throw new RangeError('Batch index must be a nonnegative integer');
   }
   const eligible = [...new Set(candidates)].sort();
+  const inventorySha256 = createHash('sha256').update(eligible.join('\n')).digest('hex');
   const batchCount = Math.ceil(eligible.length / pageLimit);
   if (batchIndex >= batchCount) {
     throw new RangeError('Batch index exceeds the current verified sitemap inventory');
@@ -23,6 +26,7 @@ export function planPublicSitemapBatch({ candidates, pageLimit, batchIndex }) {
     batchCount,
     pageLimit,
     eligibleCandidateCount: eligible.length,
+    inventorySha256,
     selectedUrls: eligible.slice(start, start + pageLimit),
     selectionBasis: 'CURRENT_SITEMAP_AND_START_URL_ONLY',
     isHistoricalCheckpoint: false,
@@ -43,10 +47,15 @@ export function classifyRequestLevelEvidence(manifest) {
     if (!entry || typeof entry.requestedUrl !== 'string' || !entry.requestedUrl) {
       throw new TypeError('Every request must include a requestedUrl');
     }
+    const redirectChain = Array.isArray(entry.redirectChain) ? entry.redirectChain : [];
+    const isDirect = entry.requestedUrl === entry.finalUrl &&
+      (redirectChain.length === 0 ||
+        (redirectChain.length === 1 && redirectChain[0] === entry.requestedUrl));
+    const hasRedactedQuery = /[?]|redacted/i.test(entry.requestedUrl);
     const isHtml200 = entry.statusCode === 200 && entry.result === 'FETCHED' &&
       entry.contentType === 'text/html' && typeof entry.finalUrl === 'string' &&
       entry.finalUrl.length > 0 && typeof entry.observedAt === 'string' &&
-      entry.observedAt.length > 0;
+      entry.observedAt.length > 0 && isDirect && !hasRedactedQuery;
     if (isHtml200) completed.push(entry.requestedUrl);
     else review.push({ requestedUrl: entry.requestedUrl, result: entry.result ?? 'UNKNOWN' });
   }
