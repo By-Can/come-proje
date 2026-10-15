@@ -136,6 +136,11 @@ export async function buildMasterAuditReport({
         meaning: 'Verified as historical backlog text only, not as a current production finding.'
       }
     },
+    // Separate immutable request outcomes from final-page aggregates.
+    // Never reconstruct historical success or 404 status from deduplicated pages.
+    publicRequestManifest: Array.isArray(crawlReport?.requestManifest)
+      ? crawlReport.requestManifest
+      : [],
     findings,
     priorityMatrix,
     historicalIssues: parseHistoricalBacklog(historicalText),
