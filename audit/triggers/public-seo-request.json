@@ -1,8 +1,8 @@
 {
-  "request_id": "public-seo-inventory-batch-0-2026-10-15",
+  "request_id": "public-seo-inventory-batch-1-2026-10-15",
   "target": "https://comerent.net/",
   "scope": "public-readonly-GET-only",
   "authorized_by": "repository-owner-via-chat",
-  "note": "User approved read-only public crawl via chat 2026-10-15. Bounded batch 0; public HTTPS GET only, no KPanel, booking, auth or production write.",
-  "batchIndex": 0
+  "note": "User-approved bounded public crawl: batch 1 of two. HTTPS GET public pages only. No KPanel/auth/booking, production writes or deployment.",
+  "batchIndex": 1
 }
