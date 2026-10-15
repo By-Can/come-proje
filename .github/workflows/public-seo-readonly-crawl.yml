@@ -47,24 +47,12 @@ jobs:
       - name: Run offline security and regression tests
         run: npm test
 
-      - name: Validate selected sitemap batch (or standard sample)
+      - name: Validate selected sitemap batch (offline)
         id: selected_batch
         shell: bash
         env:
           REQUESTED_BATCH_INDEX: ${{ inputs.batch_index }}
-        run: |
-          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
-          import fs from 'node:fs';
-          const trigger = JSON.parse(fs.readFileSync('audit/triggers/public-seo-request.json', 'utf8'));
-          const raw = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
-            ? process.env.REQUESTED_BATCH_INDEX || 'default'
-            : trigger.batchIndex ?? 'default';
-          const selected = String(raw).trim();
-          if (selected !== 'default' && !/^(?:0|[1-9][0-9]{0,2})$/.test(selected)) {
-            throw new Error('Invalid batch selection: expected default or nonnegative integer <= 999');
-          }
-          process.stdout.write('batch_index=' + selected + '\n');
-          NODE
+        run: node tools/public-seo-workflow-batch.mjs
 
       - name: Audit public Come Rent pages (GET only, rate limited)
         shell: bash
