@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { planPublicSitemapBatch, classifyRequestLevelEvidence } from './public-seo-batch-plan.mjs';
 import assert from 'node:assert/strict';
 import {
   fetchUrlWithManualRedirects,
@@ -440,4 +441,82 @@ test('master report keeps historical claims separate and unknown KPanel methods 
   }).classification, 'WRITE_POST_BLOCKED');
   assert.equal(classifyEndpoint('/Locations/GetExcelReport').classification, 'UNKNOWN_DO_NOT_CALL');
   assert.equal(classifyEndpoint('/Locations/GetExcelReportExtra', 'POST').classification, 'UNKNOWN_DO_NOT_CALL');
+});
+
+test('deterministic sitemap batches cover 224 discovered URLs without overlap or exceeding 120 GETs', async () => {
+  const sitemapUrls = Array.from(
+    { length: 224 },
+    (_, index) => `https://comerent.net/page-${index + 1}`
+  );
+  const fixture = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset(sitemapUrls))
+  };
+  const visits = [];
+  const mockFetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    assert.equal(options.redirect, 'manual');
+    visits.push(url);
+    return fixture[new URL(url).pathname] ??
+      response(200, '<html><head><title>Page</title></head><body>Public informational content</body></html>', {
+        'content-type': 'text/html'
+      });
+  };
+  const first = await runPublicSeoCrawler({
+    fetchImpl: mockFetch, delayMs: 0, sitemapBatchIndex: 0
+  });
+  const firstRequests = new Set(first.requestManifest.map(item => item.requestedUrl));
+  assert.equal(first.summary.sitemapUrlCount, 224);
+  assert.equal(first.summary.pageRequestCount, 120);
+  assert.equal(first.coverage.sitemapBatch.batchIndex, 0);
+  assert.equal(first.coverage.sitemapBatch.batchCount, 2);
+  assert.equal(first.coverage.sitemapBatch.selectedUrlCount, 120);
+  assert.equal(first.coverage.sitemapBatch.historicalCheckpointUsed, false);
+  assert.equal(first.coverage.status, 'PARTIAL');
+
+  const second = await runPublicSeoCrawler({
+    fetchImpl: mockFetch, delayMs: 0, sitemapBatchIndex: 1
+  });
+  const secondRequests = new Set(second.requestManifest.map(item => item.requestedUrl));
+  assert.equal(second.summary.sitemapUrlCount, 224);
+  assert.equal(second.summary.pageRequestCount, 105);
+  assert.equal(second.coverage.sitemapBatch.batchIndex, 1);
+  assert.equal(second.coverage.sitemapBatch.selectedUrlCount, 105);
+  assert.equal(second.coverage.sitemapBatch.allBatchesVerified, false);
+  assert.equal([...firstRequests].filter(url => secondRequests.has(url)).length, 0);
+  assert.equal(new Set([...firstRequests, ...secondRequests]).size, 225);
+  assert.equal(first.requestManifest.every(item => item.contentType === 'text/html'), true);
+});
+
+test('batch planner validates bounds and request-level 404 does not count as completed evidence', async () => {
+  assert.throws(
+    () => planPublicSitemapBatch({ candidates: ['https://comerent.net/'], pageLimit: 121, batchIndex: 0 }),
+    /Batch size/
+  );
+  assert.throws(
+    () => planPublicSitemapBatch({ candidates: ['https://comerent.net/'], pageLimit: 120, batchIndex: 1 }),
+    /Batch index exceeds/
+  );
+  const rejected = [];
+  await assert.rejects(
+    runPublicSeoCrawler({
+      sitemapBatchIndex: -1,
+      fetchImpl: async () => { rejected.push('network'); return response(200); }
+    }),
+    /Batch index must/
+  );
+  assert.equal(rejected.length, 0);
+  const proof = classifyRequestLevelEvidence([
+    { requestedUrl: 'https://comerent.net/one', finalUrl: 'https://comerent.net/one',
+      statusCode: 200, result: 'FETCHED', contentType: 'text/html', observedAt: '2026-10-15T01:00:00Z' },
+    { requestedUrl: 'https://comerent.net/missing', finalUrl: 'https://comerent.net/missing',
+      statusCode: 404, result: 'HTTP_404', contentType: 'text/html', observedAt: '2026-10-15T01:00:01Z' },
+    { requestedUrl: 'https://comerent.net/blocked', finalUrl: 'https://comerent.net/blocked',
+      statusCode: null, result: 'BLOCKED_BY_POLICY', contentType: null, observedAt: null }
+  ]);
+  assert.deepEqual(proof.verifiedHttp200HtmlUrls, ['https://comerent.net/one']);
+  assert.deepEqual(proof.requiresReview.map(item => item.requestedUrl), [
+    'https://comerent.net/missing', 'https://comerent.net/blocked'
+  ]);
+  assert.throws(() => classifyRequestLevelEvidence([{ statusCode: 200 }]), /requestedUrl/);
 });
