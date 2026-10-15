@@ -63,7 +63,7 @@ jobs:
           if (selected !== 'default' && !/^(?:0|[1-9][0-9]{0,2})$/.test(selected)) {
             throw new Error('Invalid batch selection: expected default or nonnegative integer <= 999');
           }
-          process.stdout.write('batch_index=' + selected + '\\n');
+          process.stdout.write('batch_index=' + selected + '\n');
           NODE
 
       - name: Audit public Come Rent pages (GET only, rate limited)
