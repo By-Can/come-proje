@@ -21,6 +21,7 @@ const makeReport = (batchIndex, overrides = {}) => {
   const batch = planPublicSitemapBatch({ candidates: urls, pageLimit: 3, batchIndex });
   return {
     sourceManifest: { publicCrawl: { coverage: {
+      sitemapComplete: true,
       sitemapBatch: {
         ...batch, selectedUrlCount: batch.selectedUrls.length
       }
@@ -58,6 +59,26 @@ test('incomplete, duplicate, changed sitemap and missing manifest fail closed', 
   const repeated = structuredClone(b);
   repeated.publicRequestManifest[0].requestedUrl = a.publicRequestManifest[0].requestedUrl;
   assert.ok(reviewPublicSitemapBatches([a, repeated]).reasons.includes('DUPLICATE_URL_ACROSS_BATCHES'));
+  // Counts, HTTP status and inventory fingerprint still match, but the
+  // second report actually requested another URL: selection must be rejected.
+  const substituted = structuredClone(b);
+  const replacementUrl = 'https://comerent.net/not-selected';
+  substituted.publicRequestManifest[0].requestedUrl = replacementUrl;
+  substituted.publicRequestManifest[0].finalUrl = replacementUrl;
+  substituted.publicRequestManifest[0].redirectChain = [replacementUrl];
+  const substitution = reviewPublicSitemapBatches([a, substituted]);
+  assert.equal(substitution.allBatchesVerified, false);
+  assert.ok(substitution.reasons.includes('SELECTED_REQUEST_URLS_MISMATCH'));
+  // All listed URLs respond 200, but sitemap collection was incomplete:
+  // coverage must not be reported as a verified whole-inventory audit.
+  const partial = structuredClone(b);
+  partial.sourceManifest.publicCrawl.coverage.sitemapComplete = false;
+  const incompleteSitemap = reviewPublicSitemapBatches([a, partial]);
+  assert.equal(incompleteSitemap.allBatchesVerified, false);
+  assert.ok(incompleteSitemap.reasons.includes('SITEMAP_INCOMPLETE_OR_UNVERIFIED'));
+  const missingCompleteness = structuredClone(b);
+  delete missingCompleteness.sourceManifest.publicCrawl.coverage.sitemapComplete;
+  assert.equal(reviewPublicSitemapBatches([a, missingCompleteness]).allBatchesVerified, false);
 });
 
 test('HTTP 404, redirected aliases, failed and query-redacted outcomes cannot prove full coverage', () => {
