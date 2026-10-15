@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { classifyRequestLevelEvidence } from './public-seo-batch-plan.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   redactSecrets,
@@ -90,6 +91,12 @@ export async function buildMasterAuditReport({
 } = {}) {
   const historicalText = backlogText ?? await fs.readFile('BACKLOG.md', 'utf8').catch(() => '');
   const findings = Array.isArray(crawlReport?.observations) ? crawlReport.observations : [];
+  const manifestAvailable = Array.isArray(crawlReport?.requestManifest);
+  // Evidence is validated before consolidation. Aggregated pages never stand in
+  // for successful HTTP responses when a request-level manifest is unavailable.
+  const requestReview = manifestAvailable
+    ? classifyRequestLevelEvidence(crawlReport.requestManifest)
+    : null;
   const publicEvidenceClass = !crawlReport
     ? 'UNKNOWN'
     : crawlReport.coverage?.status === 'BLOCKED_BY_POLICY'
@@ -141,6 +148,17 @@ export async function buildMasterAuditReport({
     publicRequestManifest: Array.isArray(crawlReport?.requestManifest)
       ? crawlReport.requestManifest
       : [],
+    publicRequestEvidence: {
+      status: !manifestAvailable ? 'UNKNOWN_NO_REQUEST_MANIFEST'
+        : requestReview.requiresReview.length > 0 ? 'PARTIAL_REQUIRES_REVIEW'
+        : 'DIRECT_HTTP_200_HTML_ONLY',
+      verifiedDirectHtml200Count: requestReview?.verifiedHttp200HtmlUrls.length ?? 0,
+      requiresReviewCount: requestReview?.requiresReview.length ?? 0,
+      // Safe, bounded evidence summary. No historical request is silently
+      // credited as a verified success.
+      requiresReview: requestReview?.requiresReview ?? [],
+      coverageAcrossBatches: 'UNKNOWN_UNTIL_OFFLINE_BATCH_RECONCILIATION'
+    },
     findings,
     priorityMatrix,
     historicalIssues: parseHistoricalBacklog(historicalText),
@@ -185,6 +203,11 @@ export function renderMasterAuditMarkdown(report) {
     ...Object.entries(report.sourceManifest).map(([name, source]) => (
       `| ${name} | ${source.evidenceClass} | ${source.sourceRunId ?? 'UNKNOWN'} | ${source.generatedAt ?? 'UNKNOWN'} | ${source.note ?? source.meaning ?? (source.coverage ? JSON.stringify(source.coverage) : 'UNKNOWN')} |`
     )),
+    '',
+    '## Request-level HTTP evidence',
+    '',
+    `Status: ${report.publicRequestEvidence.status}; verified direct HTML 200: ${report.publicRequestEvidence.verifiedDirectHtml200Count}; requiring review: ${report.publicRequestEvidence.requiresReviewCount}`,
+    'Cross-batch completion remains UNKNOWN until each request manifest is reconciled with an identical inventory fingerprint.',
     '',
     '## Current observations (P0–P3)',
     '',
