@@ -468,6 +468,9 @@ test('deterministic sitemap batches cover 224 discovered URLs without overlap or
   const firstRequests = new Set(first.requestManifest.map(item => item.requestedUrl));
   assert.equal(first.summary.sitemapUrlCount, 224);
   assert.equal(first.summary.pageRequestCount, 120);
+  const masterFirst = await buildMasterAuditReport({ crawlReport: first, backlogText: '' });
+  assert.equal(masterFirst.publicRequestManifest.length, 120);
+  assert.equal(masterFirst.publicRequestManifest[0].statusCode, 200);
   assert.equal(first.coverage.sitemapBatch.batchIndex, 0);
   assert.equal(first.coverage.sitemapBatch.batchCount, 2);
   assert.equal(first.coverage.sitemapBatch.selectedUrlCount, 120);
