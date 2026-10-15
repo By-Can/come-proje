@@ -209,7 +209,7 @@ const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasy
 // Exact B2B/account actions stay blocked while public informational slugs
 // such as /acente-kiralama-rehberi or /musteri-hizmetleri remain eligible.
 const PRIVATE_PORTAL_ROOT = /^\/(?:acente|b2b|musteri)\/?$/i;
-const PRIVATE_PORTAL_ACTION = /(?:^|\/)(?:acente|b2b|musteri)[-_](?:giris|login|kayit|register|signup|uye(?:lik)?(?:[-_]bilgilerim)?|hesap|profil(?:im)?|panel|portal|dashboard|oturum|sifre|parola|password)(?:\/|$)/i;
+const PRIVATE_PORTAL_ACTION = /(?:^|\/)(?:acente|b2b|musteri)[-_](?:giris(?:i)?|login|kayit|register|signup|uye(?:lik)?(?:[-_]bilgilerim)?|hesap|profil(?:im)?|panel|portal|dashboard|oturum|sifre|parola|password)(?:\/|$)/i;
 const ACTION_QUERY_NAME = /^(?:action|actions|act|method|do|operation|op|command|task|submit|intent|islem|eylem|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|booking|reservation|rezervasyon|checkout|payment|odeme|siparis|order|register|signup|login|logout)$/i;
 const ACTION_QUERY_VALUE = /^(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|checkout|payment|odeme|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|submit|purchase|buy|order|siparis|register|signup|login|logout)$/i;
 
