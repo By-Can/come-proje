@@ -536,3 +536,77 @@ test('batch planner validates bounds and request-level 404 does not count as com
   ]);
   assert.throws(() => classifyRequestLevelEvidence([{ statusCode: 200 }]), /requestedUrl/);
 });
+
+test('sitemap state-changing and confirmation URLs are blocked before any GET', async () => {
+  const actionPaths = [
+    '/cikis-yap', '/hesabimi-sil', '/rezervasyon-sorgula', '/uye-kayit',
+    '/reservasyon-basarili', '/rezervasyonunuz-alindi', '/sifremi-unuttum',
+    '/simdi-kirala', '/not-found', '/server-error', '/odeme-sonuc',
+    '/odeme-basarili', '/hesap-kapat', '/hemen-kirala',
+    '/rezervasyon-tamamla', '/uye-girisi',
+    '/%63ikis-yap', '/hesabimi%2Dsil'
+  ];
+  const actions = actionPaths.map(path => 'https://comerent.net' + path);
+  const safePaths = ['/ankara-arac-kiralama', '/rezervasyon-nasil-yapilir',
+    '/uyelik-avantajlari', '/musteri-hizmetleri', '/acente-kiralama-rehberi'];
+  const safeUrls = safePaths.map(path => 'https://comerent.net' + path);
+  let actionFetchCount = 0;
+  for (const url of actions) {
+    assert.equal(crawlerUrlPolicyReason(url), 'ACTION_PATH_BLOCKED', url);
+    await assert.rejects(
+      fetchUrlWithManualRedirects(url, async () => {
+        actionFetchCount++;
+        return response(200, '<html>Unexpected action fetch</html>');
+      }),
+      /ACTION_PATH_BLOCKED/
+    );
+  }
+  assert.equal(actionFetchCount, 0);
+  for (const url of safeUrls) {
+    assert.equal(crawlerUrlPolicyReason(url), null, url);
+  }
+
+  const fixture = {
+    '/robots.txt': response(200, robotsFixture),
+    '/sitemap.xml': response(200, sitemapUrlset([...actions, ...safeUrls])),
+    '/': response(200,
+      '<html><head><title>Come Rent</title></head><body>' +
+      [...actions, ...safeUrls].map(url => '<a href="' + url + '">link</a>').join('') +
+      '</body></html>', { 'content-type': 'text/html' })
+  };
+  for (const path of safePaths) {
+    fixture[path] = response(200, '<html><title>Public page</title></html>',
+      { 'content-type': 'text/html' });
+  }
+  for (const mode of [null, 0]) {
+    const calls = [];
+    const report = await runPublicSeoCrawler({
+      fetchImpl: fixtureFetch(fixture, calls),
+      delayMs: 0,
+      sitemapBatchIndex: mode
+    });
+    for (const requested of calls) {
+      assert.equal(actions.some(action => new URL(requested).pathname === new URL(action).pathname),
+        false, requested);
+    }
+    assert.equal(report.summary.pageRequestCount, 1 + safePaths.length);
+    assert.equal(report.sitemap.skippedUrls.filter(item =>
+      item.reason === 'ACTION_PATH_BLOCKED').length, actions.length);
+  }
+});
+
+test('redirect to state-changing GET slug is refused without fetching target', async () => {
+  for (const unsafe of ['/hesabimi-sil', '/cikis-yap', '/rezervasyon-sorgula',
+    '/uye-kayit', '/sifremi-unuttum']) {
+    let requests = 0;
+    await assert.rejects(
+      fetchUrlWithManualRedirects('https://comerent.net/ankara-arac-kiralama',
+        async () => {
+          requests++;
+          return response(302, '', { location: unsafe });
+        }),
+      /ACTION_PATH_BLOCKED/
+    );
+    assert.equal(requests, 1, unsafe);
+  }
+});

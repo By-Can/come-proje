@@ -210,6 +210,11 @@ const ACTION_PATH_SEGMENT = /(?:^|\/)(?:book(?:ing)?|reserv(?:ation|e)|rezervasy
 // such as /acente-kiralama-rehberi or /musteri-hizmetleri remain eligible.
 const PRIVATE_PORTAL_ROOT = /^\/(?:acente|b2b|musteri)\/?$/i;
 const PRIVATE_PORTAL_ACTION = /(?:^|\/)(?:acente|b2b|musteri)[-_](?:giris(?:i)?|login|kayit|register|signup|uye(?:lik)?(?:[-_]bilgilerim)?|hesap|profil(?:im)?|panel|portal|dashboard|oturum|sifre|parola|password)(?:\/|$)/i;
+// Public sitemap entries can still be functional GET endpoints. Block known
+// account, checkout, confirmation and state-transition slugs BEFORE fetch,
+// including redirects. Keep informational routes such as
+// /rezervasyon-nasil-yapilir and /uyelik-avantajlari eligible.
+const ACTION_WORKFLOW_SLUG = /(?:^|\/)(?:cikis[-_]?(?:yap|et)|oturum[-_]?kapat|hesabimi[-_]?(?:sil|kapat)|hesap[-_]?(?:sil|kapat|olustur)|uye[-_]?(?:kayit|ol|giris(?:i)?|cikis(?:i)?|aktivasyon|dogrula|onayla)|(?:rezervasyon|reservasyon|reservation)[-_](?:sorgula(?:ma)?|basarili|basarisiz|sonuc|tamamla|iptal|onayla|olustur|kaydet|yap)|rezervasyonunuz[-_](?:alindi|onaylandi)|odeme[-_](?:basarili|basarisiz|sonuc|onayla|yap|tamamla)|sifremi[-_](?:unuttum|degistir)|simdi[-_]?kirala|hemen[-_]?kirala|not[-_]?found|server[-_]?error|(?:account|profile)[-_](?:delete|remove|edit|update))(?:\/|$)/i;
 const ACTION_QUERY_NAME = /^(?:action|actions|act|method|do|operation|op|command|task|submit|intent|islem|eylem|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|booking|reservation|rezervasyon|checkout|payment|odeme|siparis|order|register|signup|login|logout)$/i;
 const ACTION_QUERY_VALUE = /^(?:book(?:ing)?|reserv(?:ation|e)|rezervasyon|checkout|payment|odeme|delete|sil|remove|cancel|iptal|save|kaydet|update|edit|duzenle|create|ekle|submit|purchase|buy|order|siparis|register|signup|login|logout)$/i;
 
@@ -217,6 +222,7 @@ export function isSensitivePath(pathname) {
   try {
     const normalized = normalizedToken(pathname);
     return ACTION_PATH_SEGMENT.test(normalized) ||
+      ACTION_WORKFLOW_SLUG.test(normalized) ||
       PRIVATE_PORTAL_ROOT.test(normalized) ||
       PRIVATE_PORTAL_ACTION.test(normalized);
   } catch {
